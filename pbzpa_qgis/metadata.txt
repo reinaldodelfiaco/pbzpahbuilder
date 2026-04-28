@@ -1,0 +1,32 @@
+[general]
+name=PBZPA/PBZPH
+qgisMinimumVersion=3.22
+qgisMaximumVersion=3.99
+description=Geração de Plano Básico de Zona de Proteção de Aeródromo (PBZPA) e Heliponto (PBZPH) com análise de imagem de satélite e identificação de OPEA, conforme ICA 11-3, ICA 11-408, ICA 63-19, RBAC 154/155 e T 34-700 (EB).
+about=Plugin para engenheiros civis e cartográficos. Gera as superfícies limitadoras de obstáculos (faixa, horizontal interna, cônica, aproximação, transição, decolagem) a partir das coordenadas das cabeceiras, classifica os Objetos Projetados no Espaço Aéreo (OPEA) detectados em imagem de satélite (modelo ML + revisão manual) e exporta o desenho final para KML e DXF (DWG via ODA File Converter).
+version=0.1.0
+author=Fiaco
+email=cmtefiaco@gmail.com
+
+tracker=https://github.com/<usuario>/pbzpa-qgis/issues
+repository=https://github.com/<usuario>/pbzpa-qgis
+
+# Tags são separadas por vírgula
+tags=aviation,airport,heliport,aerodrome,PBZPA,PBZPH,ICA,ANAC,obstacle,vector,raster,3D,KML,DXF,DWG,brazil
+
+homepage=https://github.com/<usuario>/pbzpa-qgis
+category=Plugins
+icon=resources/icon.png
+
+# experimental flag
+experimental=True
+
+# deprecated flag
+deprecated=False
+
+# Plataformas suportadas (deixar em branco = todas)
+plugin_dependencies=
+
+# Idiomas suportados pela tradução (.qm)
+# Disponíveis em i18n/
+hasProcessingProvider=yes

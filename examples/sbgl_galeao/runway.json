@@ -1,0 +1,27 @@
+{
+  "icao_code": "SBGL",
+  "name": "Aeroporto Internacional do Rio de Janeiro / Galeão – Antonio Carlos Jobim",
+  "runway": "15/33",
+  "code_number": 4,
+  "code_letter": "E",
+  "runway_type": "instrument",
+  "width_m": 47,
+  "thresholds": {
+    "A": {
+      "designator": "15",
+      "longitude": -43.241500,
+      "latitude": -22.795889,
+      "elevation_m": 8.5,
+      "approach_type": "precision_cat_i"
+    },
+    "B": {
+      "designator": "33",
+      "longitude": -43.260944,
+      "latitude": -22.821389,
+      "elevation_m": 8.5,
+      "approach_type": "precision_cat_i"
+    }
+  },
+  "fontes": ["AIP Brasil — SBGL"],
+  "observacoes": "Coordenadas aproximadas para teste."
+}

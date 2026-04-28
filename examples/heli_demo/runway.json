@@ -1,0 +1,18 @@
+{
+  "tipo": "heliponto",
+  "name": "Heliponto demonstrativo (PBZPH)",
+  "categoria": "PRIVADO_NIVEL_SOLO",
+  "tlof": {
+    "centro": {
+      "longitude": -46.640000,
+      "latitude": -23.560000,
+      "elevation_m": 760.0
+    },
+    "diametro_m": 25,
+    "rumo_aproximacao_graus": 90
+  },
+  "fmgo": {
+    "diametro_m": 30
+  },
+  "observacoes": "Exemplo sintético para validação do módulo PBZPH (a desenvolver). Não corresponde a heliponto real."
+}

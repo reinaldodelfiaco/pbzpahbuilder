@@ -1,0 +1,163 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>PBZPADialog</class>
+ <widget class="QDialog" name="PBZPADialog">
+  <property name="windowTitle">
+   <string>PBZPA / PBZPH — Plano Básico de Zona de Proteção</string>
+  </property>
+  <property name="geometry">
+   <rect>
+    <x>0</x><y>0</y><width>720</width><height>540</height>
+   </rect>
+  </property>
+  <layout class="QVBoxLayout" name="mainLayout">
+   <item>
+    <widget class="QTabWidget" name="tabWidget">
+
+     <!-- ABA 1: AERÓDROMO -->
+     <widget class="QWidget" name="tabAerodromo">
+      <attribute name="title"><string>1. Aeródromo</string></attribute>
+      <layout class="QFormLayout" name="formAerodromo">
+       <item row="0" column="0"><widget class="QLabel"><property name="text"><string>Designativo OACI:</string></property></widget></item>
+       <item row="0" column="1"><widget class="QLineEdit" name="lineICAO"/></item>
+
+       <item row="1" column="0"><widget class="QLabel"><property name="text"><string>Cabeceira A — designativo:</string></property></widget></item>
+       <item row="1" column="1"><widget class="QLineEdit" name="lineCabA"/></item>
+       <item row="2" column="0"><widget class="QLabel"><property name="text"><string>Lon A (graus dec.):</string></property></widget></item>
+       <item row="2" column="1"><widget class="QLineEdit" name="lineLonA"/></item>
+       <item row="3" column="0"><widget class="QLabel"><property name="text"><string>Lat A (graus dec.):</string></property></widget></item>
+       <item row="3" column="1"><widget class="QLineEdit" name="lineLatA"/></item>
+       <item row="4" column="0"><widget class="QLabel"><property name="text"><string>Elevação A (m):</string></property></widget></item>
+       <item row="4" column="1"><widget class="QLineEdit" name="lineElevA"/></item>
+
+       <item row="5" column="0"><widget class="QLabel"><property name="text"><string>Cabeceira B — designativo:</string></property></widget></item>
+       <item row="5" column="1"><widget class="QLineEdit" name="lineCabB"/></item>
+       <item row="6" column="0"><widget class="QLabel"><property name="text"><string>Lon B (graus dec.):</string></property></widget></item>
+       <item row="6" column="1"><widget class="QLineEdit" name="lineLonB"/></item>
+       <item row="7" column="0"><widget class="QLabel"><property name="text"><string>Lat B (graus dec.):</string></property></widget></item>
+       <item row="7" column="1"><widget class="QLineEdit" name="lineLatB"/></item>
+       <item row="8" column="0"><widget class="QLabel"><property name="text"><string>Elevação B (m):</string></property></widget></item>
+       <item row="8" column="1"><widget class="QLineEdit" name="lineElevB"/></item>
+
+       <item row="9" column="0"><widget class="QLabel"><property name="text"><string>Code Number:</string></property></widget></item>
+       <item row="9" column="1">
+        <widget class="QComboBox" name="cmbCodeNumber">
+         <item><property name="text"><string>1</string></property></item>
+         <item><property name="text"><string>2</string></property></item>
+         <item><property name="text"><string>3</string></property></item>
+         <item><property name="text"><string>4</string></property></item>
+        </widget>
+       </item>
+
+       <item row="10" column="0"><widget class="QLabel"><property name="text"><string>Code Letter:</string></property></widget></item>
+       <item row="10" column="1">
+        <widget class="QComboBox" name="cmbCodeLetter">
+         <item><property name="text"><string>A</string></property></item>
+         <item><property name="text"><string>B</string></property></item>
+         <item><property name="text"><string>C</string></property></item>
+         <item><property name="text"><string>D</string></property></item>
+         <item><property name="text"><string>E</string></property></item>
+         <item><property name="text"><string>F</string></property></item>
+        </widget>
+       </item>
+
+       <item row="11" column="0"><widget class="QLabel"><property name="text"><string>Tipo de pista:</string></property></widget></item>
+       <item row="11" column="1">
+        <widget class="QComboBox" name="cmbRunwayType"/>
+       </item>
+
+       <item row="12" column="0"><widget class="QLabel"><property name="text"><string>Operação cabeceira A:</string></property></widget></item>
+       <item row="12" column="1"><widget class="QComboBox" name="cmbApproachA"/></item>
+       <item row="13" column="0"><widget class="QLabel"><property name="text"><string>Operação cabeceira B:</string></property></widget></item>
+       <item row="13" column="1"><widget class="QComboBox" name="cmbApproachB"/></item>
+
+       <item row="14" column="0"><widget class="QLabel"><property name="text"><string>Largura física da pista (m):</string></property></widget></item>
+       <item row="14" column="1"><widget class="QLineEdit" name="lineLargura"/></item>
+
+       <item row="15" column="0" colspan="2">
+        <widget class="QPushButton" name="btnGerarSuperficies">
+         <property name="text"><string>Gerar superfícies</string></property>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+
+     <!-- ABA 2: IMAGEM & OPEA -->
+     <widget class="QWidget" name="tabImagem">
+      <attribute name="title"><string>2. Imagem &amp; OPEA</string></attribute>
+      <layout class="QVBoxLayout">
+       <item>
+        <layout class="QHBoxLayout">
+         <item><widget class="QLabel"><property name="text"><string>Imagem (raster):</string></property></widget></item>
+         <item><widget class="QLineEdit" name="lineRaster"/></item>
+         <item><widget class="QPushButton" name="btnSelecionarRaster"><property name="text"><string>...</string></property></widget></item>
+        </layout>
+       </item>
+       <item>
+        <widget class="QLabel">
+         <property name="text"><string>Após gerar as superfícies, edite a camada "OPEA" no QGIS para inserir os obstáculos detectados (ou use a importação automática).</string></property>
+         <property name="wordWrap"><bool>true</bool></property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QPushButton" name="btnDetectarML">
+         <property name="text"><string>Sugerir OPEA via ML (opcional)</string></property>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+
+     <!-- ABA 3: ANÁLISE -->
+     <widget class="QWidget" name="tabAnalise">
+      <attribute name="title"><string>3. Análise</string></attribute>
+      <layout class="QVBoxLayout">
+       <item>
+        <widget class="QLabel">
+         <property name="text"><string>A análise compara cada OPEA com as superfícies limitadoras e classifica em CONFORME / LIMITROFE / VIOLACAO.</string></property>
+         <property name="wordWrap"><bool>true</bool></property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QPushButton" name="btnRodarAnalise">
+         <property name="text"><string>Rodar análise OPEA × superfícies</string></property>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+
+     <!-- ABA 4: EXPORTAÇÃO -->
+     <widget class="QWidget" name="tabExport">
+      <attribute name="title"><string>4. Exportação</string></attribute>
+      <layout class="QVBoxLayout">
+       <item><widget class="QPushButton" name="btnExportarKML"><property name="text"><string>Exportar KML/KMZ</string></property></widget></item>
+       <item>
+        <layout class="QHBoxLayout">
+         <item><widget class="QPushButton" name="btnExportarDXF"><property name="text"><string>Exportar DXF</string></property></widget></item>
+         <item><widget class="QCheckBox" name="chkConverterDWG"><property name="text"><string>Converter para DWG (ODA)</string></property></widget></item>
+        </layout>
+       </item>
+      </layout>
+     </widget>
+
+    </widget>
+   </item>
+
+   <item>
+    <widget class="QDialogButtonBox" name="buttonBox">
+     <property name="standardButtons">
+      <set>QDialogButtonBox::Close</set>
+     </property>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+
+ <connections>
+  <connection>
+   <sender>buttonBox</sender>
+   <signal>rejected()</signal>
+   <receiver>PBZPADialog</receiver>
+   <slot>close()</slot>
+  </connection>
+ </connections>
+</ui>

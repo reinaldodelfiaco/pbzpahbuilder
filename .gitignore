@@ -1,0 +1,48 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Qt / PyQt
+*.pyc
+*_rc.py
+ui_*.py
+
+# QGIS
+*.qgz~
+*.qgs~
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.bak
+
+# Modelos ML
+models/*.pt
+models/*.onnx
+models/*.weights
+
+# Saídas geradas
+outputs/
+exports/
+*.dxf
+*.kml
+*.kmz
+
+# Imagens de satélite (geralmente grandes)
+*.tif
+*.tiff
+*.img
+imagery/
+
+# Plugin distribuição
+*.zip

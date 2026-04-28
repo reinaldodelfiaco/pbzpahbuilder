@@ -1,0 +1,30 @@
+{
+  "icao_code": "SBGR",
+  "name": "Aeroporto Internacional de São Paulo / Guarulhos – Governador André Franco Montoro",
+  "runway": "09L/27R",
+  "code_number": 4,
+  "code_letter": "E",
+  "runway_type": "instrument",
+  "width_m": 45,
+  "thresholds": {
+    "A": {
+      "designator": "09L",
+      "longitude": -46.482806,
+      "latitude": -23.439361,
+      "elevation_m": 750.0,
+      "approach_type": "precision_cat_ii"
+    },
+    "B": {
+      "designator": "27R",
+      "longitude": -46.450500,
+      "latitude": -23.428583,
+      "elevation_m": 750.0,
+      "approach_type": "precision_cat_i"
+    }
+  },
+  "fontes": [
+    "AIP Brasil — SBGR",
+    "Carta de Aeródromo Anac SBGR"
+  ],
+  "observacoes": "Coordenadas e elevação aproximadas para fins de teste. Conferir contra a AIP vigente antes de qualquer uso operacional."
+}
