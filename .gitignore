@@ -46,3 +46,6 @@ imagery/
 
 # Plugin distribuição
 *.zip
+
+# Bundle gerado para distribuicao do historico
+pbzpa_qgis.bundle
