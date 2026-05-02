@@ -16,19 +16,35 @@ import os
 from typing import Optional
 
 from qgis.PyQt import uic
-from qgis.PyQt.QtWidgets import QDialog, QFileDialog, QMessageBox
+from qgis.PyQt.QtWidgets import (
+    QComboBox,
+    QDialog,
+    QFileDialog,
+    QHBoxLayout,
+    QLabel,
+    QMessageBox,
+    QPushButton,
+    QTextEdit,
+    QVBoxLayout,
+    QWidget,
+)
 from qgis.core import (
     QgsMessageLog,
     QgsProject,
     Qgis,
 )
 
-from .core.runway import ApproachType, Runway, RunwayType, Threshold
+from .core.runway import ApproachType, ProjectType, Runway, RunwayType, SSPVSector, Threshold
 from .core.surfaces import build_pbzpa_layer
 from .core.opea_detection import create_opea_layer
 from .core.conflict_analysis import analyze_conflicts
 from .export.kml_exporter import export_layers_to_kml
 from .export.dxf_exporter import export_to_dxf
+from .export.sysaga_exporter import (
+    elevations_csv_text,
+    export_sysaga_package,
+    informational_sheet_html,
+)
 
 PLUGIN_DIR = os.path.dirname(__file__)
 UI_PATH = os.path.join(PLUGIN_DIR, "ui", "pbzpa_dialog.ui")
@@ -42,6 +58,8 @@ class PBZPADialog(QDialog, FORM_CLASS):
         self.iface = iface
         self._surfaces_layer = None
         self._opea_layer = None
+        self._setup_reference_combos()
+        self._setup_sysaga_controls()
 
         # Conexões (objectName setado no .ui)
         self.btnGerarSuperficies.clicked.connect(self.on_generate_surfaces)
@@ -49,6 +67,57 @@ class PBZPADialog(QDialog, FORM_CLASS):
         self.btnExportarKML.clicked.connect(self.on_export_kml)
         self.btnExportarDXF.clicked.connect(self.on_export_dxf)
         self.btnSelecionarRaster.clicked.connect(self.on_select_raster)
+
+    def _setup_reference_combos(self) -> None:
+        """Preenche combos que o Qt Designer deixa vazios ou sem userData."""
+        if self.cmbRunwayType.count() == 0:
+            self.cmbRunwayType.addItem("Nao instrumento", RunwayType.NON_INSTRUMENT.value)
+            self.cmbRunwayType.addItem("Instrumento", RunwayType.INSTRUMENT.value)
+
+        for combo in (self.cmbApproachA, self.cmbApproachB):
+            if combo.count() == 0:
+                combo.addItem("Nao opera", ApproachType.NOT_OPERATIONAL.value)
+                combo.addItem("Visual", ApproachType.VISUAL.value)
+                combo.addItem("Nao precisao", ApproachType.NON_PRECISION.value)
+                combo.addItem("Precisao CAT I", ApproachType.PRECISION_CAT_I.value)
+                combo.addItem("Precisao CAT II", ApproachType.PRECISION_CAT_II.value)
+                combo.addItem("Precisao CAT III", ApproachType.PRECISION_CAT_III.value)
+                combo.setCurrentIndex(1)
+
+    def _setup_sysaga_controls(self) -> None:
+        """Adiciona campos/exportadores usados para conferir os dados do SYSAGA."""
+        self.cmbProjectType = QComboBox(self)
+        self.cmbProjectType.addItem("Aerodromo (PBZPA)", ProjectType.AERODROME.value)
+        self.cmbProjectType.addItem("Heliponto (PBZPH)", ProjectType.HELIPORT.value)
+        self.formAerodromo.insertRow(0, "Tipo de projeto:", self.cmbProjectType)
+
+        self.cmbSSPV = QComboBox(self)
+        self.cmbSSPV.addItem("Sem SSPV", SSPVSector.NONE.value)
+        self.cmbSSPV.addItem("Somente setor da cabeceira A", SSPVSector.SECTOR_A.value)
+        self.cmbSSPV.addItem("Somente setor da cabeceira B", SSPVSector.SECTOR_B.value)
+        self.cmbSSPV.addItem("Ambos os setores", SSPVSector.BOTH.value)
+        self.cmbSSPV.setCurrentIndex(3)
+        self.formAerodromo.insertRow(16, "Setor SSPV:", self.cmbSSPV)
+
+        self.tabSysaga = QWidget(self)
+        layout = QVBoxLayout(self.tabSysaga)
+        layout.addWidget(QLabel("Pre-visualizacao da ficha informativa e da planilha de elevacoes.", self.tabSysaga))
+        actions = QHBoxLayout()
+        self.btnVisualizarFicha = QPushButton("Visualizar ficha informativa", self.tabSysaga)
+        self.btnVisualizarElevacoes = QPushButton("Visualizar planilha de elevacoes", self.tabSysaga)
+        self.btnExportarSysaga = QPushButton("Exportar ficha e planilha", self.tabSysaga)
+        actions.addWidget(self.btnVisualizarFicha)
+        actions.addWidget(self.btnVisualizarElevacoes)
+        actions.addWidget(self.btnExportarSysaga)
+        layout.addLayout(actions)
+        self.txtSysagaPreview = QTextEdit(self.tabSysaga)
+        self.txtSysagaPreview.setReadOnly(True)
+        layout.addWidget(self.txtSysagaPreview)
+        self.tabWidget.addTab(self.tabSysaga, "5. SYSAGA")
+
+        self.btnVisualizarFicha.clicked.connect(self.on_preview_info_sheet)
+        self.btnVisualizarElevacoes.clicked.connect(self.on_preview_elevations)
+        self.btnExportarSysaga.clicked.connect(self.on_export_sysaga)
 
     # ------------------------------------------------------------------
     # Helpers
@@ -73,9 +142,11 @@ class PBZPADialog(QDialog, FORM_CLASS):
                 threshold_b=th_b,
                 code_number=int(self.cmbCodeNumber.currentText()),
                 code_letter=self.cmbCodeLetter.currentText(),
+                project_type=ProjectType(self.cmbProjectType.currentData()),
                 approach_type_a=ApproachType(self.cmbApproachA.currentData()),
                 approach_type_b=ApproachType(self.cmbApproachB.currentData()),
                 runway_type=RunwayType(self.cmbRunwayType.currentData()),
+                sspv_sector=SSPVSector(self.cmbSSPV.currentData()),
                 width_m=float(self.lineLargura.text().replace(",", ".") or 45),
             )
             return rwy
@@ -92,6 +163,14 @@ class PBZPADialog(QDialog, FORM_CLASS):
     def on_generate_surfaces(self) -> None:
         runway = self._build_runway()
         if runway is None:
+            return
+        if runway.project_type == ProjectType.HELIPORT:
+            QMessageBox.warning(
+                self,
+                "PBZPH em conferência",
+                "O modo Heliponto foi selecionado, mas a geração PBZPH está bloqueada "
+                "até a conferência dos campos autenticados do Anexo B do SYSAGA.",
+            )
             return
         try:
             layer = build_pbzpa_layer(runway)
@@ -167,3 +246,54 @@ class PBZPADialog(QDialog, FORM_CLASS):
         if res.dwg_path:
             msg += f"\nDWG gerado em:\n{res.dwg_path}"
         QMessageBox.information(self, "Exportação", msg)
+
+    def on_preview_info_sheet(self) -> None:
+        runway = self._build_runway()
+        if runway is None:
+            return
+        if runway.project_type == ProjectType.HELIPORT:
+            QMessageBox.warning(
+                self,
+                "Ficha PBZPH em conferência",
+                "A ficha de heliponto depende dos campos autenticados do Anexo B do SYSAGA. "
+                "Como o SYSAGA redirecionou para login, a geração foi bloqueada para evitar dados incompatíveis.",
+            )
+            return
+        self.txtSysagaPreview.setHtml(informational_sheet_html(runway))
+
+    def on_preview_elevations(self) -> None:
+        if self._surfaces_layer is None:
+            QMessageBox.warning(self, "Atenção", "Gere as superfícies antes de visualizar a planilha.")
+            return
+        self.txtSysagaPreview.setPlainText(elevations_csv_text(self._surfaces_layer))
+
+    def on_export_sysaga(self) -> None:
+        runway = self._build_runway()
+        if runway is None:
+            return
+        if runway.project_type == ProjectType.HELIPORT:
+            QMessageBox.warning(
+                self,
+                "Exportação PBZPH em conferência",
+                "A exportação da ficha e da planilha PBZPH está bloqueada até a conferência "
+                "dos campos autenticados do Anexo B do SYSAGA.",
+            )
+            return
+        if self._surfaces_layer is None:
+            QMessageBox.warning(self, "Atenção", "Gere as superfícies antes de exportar a planilha de elevações.")
+            return
+        output_dir = QFileDialog.getExistingDirectory(self, "Selecionar pasta de saída")
+        if not output_dir:
+            return
+        try:
+            package = export_sysaga_package(runway, self._surfaces_layer, output_dir)
+        except Exception as exc:  # noqa: BLE001
+            QMessageBox.critical(self, "Erro", f"Falha ao exportar arquivos SYSAGA: {exc}")
+            return
+        QMessageBox.information(
+            self,
+            "Exportação SYSAGA",
+            "Arquivos gerados:\n"
+            f"{package.info_html_path}\n"
+            f"{package.elevations_csv_path}",
+        )

@@ -1,85 +1,144 @@
 # PBZPA-QGIS
 
-**Complemento (plugin) QGIS para geração de Planos Básicos de Zona de Proteção de Aeródromo (PBZPA) e de Heliponto (PBZPH)** a partir da análise de imagem de satélite, em conformidade com as normas do Comando da Aeronáutica (ICA 11-3, ICA 11-408, ICA 63-19), da ANAC (RBAC 154 e 155) e seguindo as convenções cartográficas do Exército Brasileiro (T 34-700).
+**PBZPA-QGIS** e um complemento para QGIS voltado a geracao de Planos Basicos de Zona de Protecao de Aerodromo (PBZPA) e de Heliponto (PBZPH), com apoio a analise de OPEA, exportacao cartografica e conferencia de anexos usados no SYSAGA.
 
-## Funcionalidades
+Versao atual: **0.3.0**
 
-- Geração paramétrica das superfícies limitadoras de obstáculos (faixa de pista, horizontal interna, cônica, aproximação, transição e decolagem) a partir das coordenadas das cabeceiras, classe e tipo de operação da pista.
-- Detecção híbrida de Objetos Projetados no Espaço Aéreo (OPEA) sobre imagem de satélite: sugestão automática por modelo de visão computacional (ONNX) e revisão manual pelo operador.
-- Análise de conflito OPEA × superfícies, com classificação (conforme / em violação / sob estudo) e relatório.
-- Simbologia cartográfica conforme T 34-700 e convenções aeronáuticas (arquivos `.qml`).
-- Exportação para **KML** (Google Earth) e **DXF** (compatível com AutoCAD via ODA File Converter para DWG).
-- Reprojeção automática para SIRGAS 2000 / UTM com base na coordenada do aeródromo.
+## Principais Recursos
 
-## Estrutura do repositório
+- Geracao parametrica das superficies limitadoras de obstaculos: faixa de pista, horizontal interna, conica, aproximacao, transicao e decolagem.
+- Entrada das duas cabeceiras por designativo, latitude, longitude e elevacao.
+- Primeira etapa de classificacao do projeto: **Aerodromo (PBZPA)** ou **Heliponto (PBZPH)**.
+- Definicao do codigo de referencia da pista, tipo de pista e operacao por cabeceira.
+- Opcao **Nao opera** para uma cabeceira. Quando selecionada, o plugin nao gera as superficies de aproximacao e decolagem daquele setor.
+- Selecao de SSPV: sem SSPV, somente setor da cabeceira A, somente setor da cabeceira B ou ambos os setores.
+- Criacao de camada OPEA para revisao manual e analise de conflito com as superficies.
+- Exportacao do desenho para **KML/KMZ** e **DXF**; conversao opcional para DWG via ODA File Converter.
+- Aba **SYSAGA** para visualizar e exportar:
+  - ficha informativa do aerodromo em HTML;
+  - planilha de elevacoes em CSV.
+- Reprojecao automatica para SIRGAS 2000 / UTM com base na posicao do aerodromo.
 
-```
-PBZPH/
-├── pbzpa_qgis/                # Código-fonte do plugin
+## Novidades da Versao 0.3.0
+
+- Adicionada a etapa inicial **Tipo de projeto**.
+- Incluida a opcao **Heliponto (PBZPH)** como modo de projeto.
+- Bloqueada a geracao/exportacao PBZPH enquanto os campos autenticados do Anexo B do SYSAGA nao forem conferidos.
+- Documentada a limitacao de acesso ao Anexo B, que redireciona para login gov.br.
+
+## Novidades da Versao 0.2.0
+
+- Adicionada a opcao de cabeceira sem operacao.
+- Adicionada a selecao de setor SSPV.
+- Adicionada a aba SYSAGA.
+- Adicionada exportacao da ficha informativa e da planilha de elevacoes.
+- Corrigido o preenchimento dos combos de tipo de pista e tipo de operacao.
+
+## Estrutura do Repositorio
+
+```text
+pbzpahbuilder/
+├── pbzpa_qgis/
 │   ├── metadata.txt
-│   ├── __init__.py
-│   ├── pbzpa_plugin.py        # Classe principal (classFactory)
-│   ├── pbzpa_dialog.py        # Lógica do diálogo
-│   ├── core/                  # Geometria, detecção, análise
-│   │   ├── __init__.py
+│   ├── pbzpa_plugin.py
+│   ├── pbzpa_dialog.py
+│   ├── core/
+│   │   ├── runway.py
 │   │   ├── surfaces.py
 │   │   ├── utm_utils.py
 │   │   ├── opea_detection.py
 │   │   └── conflict_analysis.py
-│   ├── export/                # Exportadores KML / DXF
-│   │   ├── __init__.py
+│   ├── export/
 │   │   ├── kml_exporter.py
-│   │   └── dxf_exporter.py
+│   │   ├── dxf_exporter.py
+│   │   └── sysaga_exporter.py
 │   ├── ui/
-│   │   └── pbzpa_dialog.ui    # Diálogo Qt Designer
-│   ├── styles/                # Estilos .qml
-│   ├── resources/             # Ícones, recursos
-│   ├── i18n/                  # Traduções
-│   └── tests/                 # Testes unitários
+│   │   └── pbzpa_dialog.ui
+│   ├── styles/
+│   ├── resources/
+│   ├── i18n/
+│   └── tests/
 ├── docs/
+│   ├── manual_usuario.md
 │   └── superficies_limitadoras_obstaculos.md
-├── .gitignore
+├── examples/
 ├── LICENSE
 └── README.md
 ```
 
-## Instalação (desenvolvimento)
+## Instalacao em Desenvolvimento
 
-1. Localize a pasta de plugins do QGIS no Windows:
-   `%APPDATA%\QGIS\QGIS3\profiles\default\python\plugins\`
-2. Crie um link simbólico (ou copie) a pasta `pbzpa_qgis/` para esse diretório.
+1. Localize a pasta de plugins do QGIS:
+
    ```cmd
-   mklink /D "%APPDATA%\QGIS\QGIS3\profiles\default\python\plugins\pbzpa_qgis" "C:\Users\Reinaldo\OneDrive\Documentos\Claude\Projects\PBZPA\PBZPH\pbzpa_qgis"
+   %APPDATA%\QGIS\QGIS3\profiles\default\python\plugins\
    ```
-3. Reinicie o QGIS, vá em *Complementos → Gerenciar e Instalar Complementos → Instalados* e ative **PBZPA/PBZPH**.
 
-## Dependências
+2. Crie um link simbolico ou copie a pasta `pbzpa_qgis/` para a pasta de plugins:
 
-- QGIS 3.44 (LTR ou superior).
-- Python 3.9+ (já incluso no QGIS).
-- Bibliotecas adicionais (instaladas via *OSGeo4W Shell* com `python -m pip install`):
-  - `ezdxf >= 1.2` — exportação DXF.
-  - `onnxruntime` — inferência do detector de OPEA.
-  - `numpy` (já vem com QGIS).
+   ```cmd
+   mklink /D "%APPDATA%\QGIS\QGIS3\profiles\default\python\plugins\pbzpa_qgis" "C:\Users\Reinaldo\OneDrive\Documentos\GitHub\pbzpahbuilder\pbzpa_qgis"
+   ```
 
-## Versão DWG
+3. Reinicie o QGIS.
+4. Acesse **Complementos > Gerenciar e Instalar Complementos > Instalados**.
+5. Ative **PBZPA/PBZPH**.
 
-A exportação nativa é em **DXF**. Para gerar **DWG**, instale o
-[ODA File Converter](https://www.opendesign.com/guestfiles/oda_file_converter)
-(gratuito) e use o conversor diretamente, ou ative a opção *Converter para DWG*
-no diálogo de exportação caso o executável seja detectado.
+## Dependencias
 
-## Referências normativas
+- QGIS 3.44 ou superior.
+- Python do proprio QGIS.
+- Para exportacao DXF:
 
-- ICA 11-3 — Plano Básico de Zona de Proteção de Aeródromos.
-- ICA 11-408 — Plano Básico de Zona de Proteção de Helipontos.
-- ICA 63-19 — Cartas Aeronáuticas.
-- RBAC 154 — Projeto de Aeródromos (ANAC).
-- RBAC 155 — Heliportos (ANAC).
-- T 34-700 — Manual Técnico de Convenções Cartográficas (Exército Brasileiro).
-- Anexo 14 da OACI — Aerodromes.
-- [PyQGIS Developer Cookbook 3.44](https://docs.qgis.org/3.44/en/docs/pyqgis_developer_cookbook/).
+  ```powershell
+  python -m pip install ezdxf
+  ```
 
-## Licença
+- Para deteccao automatica de OPEA por modelo:
 
-Distribuído sob a licença **GPLv3**. Veja o arquivo [LICENSE](./LICENSE).
+  ```powershell
+  python -m pip install onnxruntime
+  ```
+
+O plugin tambem pode ser verificado com Python global para sintaxe, mas a execucao dentro do QGIS depende do ambiente Python embarcado no QGIS.
+
+## Uso Basico
+
+1. Abra o QGIS.
+2. Clique no botao ou menu **PBZPA/PBZPH**.
+3. Na aba **Aerodromo**, selecione primeiro se o projeto e **Aerodromo (PBZPA)** ou **Heliponto (PBZPH)**.
+4. Para PBZPA, preencha os dados das cabeceiras e da pista.
+5. Defina a operacao de cada cabeceira. Use **Nao opera** quando uma cabeceira nao deve gerar aproximacao/decolagem.
+6. Defina o setor SSPV aplicavel.
+7. Clique em **Gerar superficies**.
+8. Edite ou alimente a camada OPEA.
+9. Rode a analise de conflito.
+10. Exporte o desenho em KML/KMZ ou DXF.
+11. Na aba **SYSAGA**, visualize e exporte a ficha informativa e a planilha de elevacoes.
+
+O modo **Heliponto (PBZPH)** esta disponivel como primeira classificacao do projeto, mas a geracao do desenho e da ficha PBZPH permanece bloqueada ate a conferencia dos campos oficiais do Anexo B do SYSAGA em ambiente autenticado.
+
+Consulte o manual completo em [docs/manual_usuario.md](docs/manual_usuario.md).
+
+## Saidas Geradas
+
+- Camada `PBZPA - Superficies` em PolygonZ.
+- Camada `OPEA` para obstaculos.
+- KML/KMZ para visualizacao no Google Earth.
+- DXF para CAD.
+- HTML da ficha informativa.
+- CSV da planilha de elevacoes.
+
+## Referencias Normativas
+
+- ICA 11-3: Plano Basico de Zona de Protecao de Aerodromos.
+- ICA 11-408: Plano Basico de Zona de Protecao de Helipontos.
+- ICA 63-19: Cartas Aeronauticas.
+- RBAC 154: Projeto de Aerodromos.
+- RBAC 155: Helipontos.
+- T 34-700: Convencoes Cartograficas do Exercito Brasileiro.
+- Anexo 14 da OACI: Aerodromes.
+
+## Licenca
+
+Distribuido sob a licenca **GPLv3**. Veja [LICENSE](LICENSE).

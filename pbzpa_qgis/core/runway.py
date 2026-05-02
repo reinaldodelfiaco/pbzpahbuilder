@@ -15,12 +15,13 @@ Internamente o módulo de superfícies converte para UTM SIRGAS 2000 via
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
 from typing import Tuple
 
 
 class ApproachType(str, Enum):
+    NOT_OPERATIONAL = "not_operational"
     VISUAL = "visual"
     NON_PRECISION = "non_precision"
     PRECISION_CAT_I = "precision_cat_i"
@@ -31,6 +32,18 @@ class ApproachType(str, Enum):
 class RunwayType(str, Enum):
     NON_INSTRUMENT = "non_instrument"
     INSTRUMENT = "instrument"
+
+
+class ProjectType(str, Enum):
+    AERODROME = "aerodrome"
+    HELIPORT = "heliport"
+
+
+class SSPVSector(str, Enum):
+    NONE = "none"
+    SECTOR_A = "sector_a"
+    SECTOR_B = "sector_b"
+    BOTH = "both"
 
 
 @dataclass(frozen=True)
@@ -50,9 +63,11 @@ class Runway:
     threshold_b: Threshold
     code_number: int            # 1, 2, 3, 4
     code_letter: str            # 'A'..'F'
+    project_type: ProjectType = ProjectType.AERODROME
     approach_type_a: ApproachType = ApproachType.VISUAL  # operação na cabeceira A
     approach_type_b: ApproachType = ApproachType.VISUAL  # operação na cabeceira B
     runway_type: RunwayType = RunwayType.NON_INSTRUMENT
+    sspv_sector: SSPVSector = SSPVSector.BOTH
     width_m: float = 45.0       # largura física da pista (m)
 
     def __post_init__(self):

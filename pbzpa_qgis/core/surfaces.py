@@ -24,7 +24,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from typing import List, Sequence, Tuple
+from typing import List, Optional, Sequence, Tuple
 
 from qgis.core import (
     QgsCoordinateReferenceSystem,
@@ -339,6 +339,8 @@ def generate_approach(runway: Runway, threshold: str, transform: QgsCoordinateTr
     th = runway.threshold_a if threshold == "A" else runway.threshold_b
     other = runway.threshold_b if threshold == "A" else runway.threshold_a
     op = runway.approach_type_a if threshold == "A" else runway.approach_type_b
+    if op == ApproachType.NOT_OPERATIONAL:
+        return []
 
     params = APPROACH[(runway.code_number, op)]
 
@@ -386,10 +388,13 @@ def generate_approach(runway: Runway, threshold: str, transform: QgsCoordinateTr
     return feats
 
 
-def generate_takeoff(runway: Runway, threshold: str, transform: QgsCoordinateTransform, elev_arp: float) -> QgsFeature:
+def generate_takeoff(runway: Runway, threshold: str, transform: QgsCoordinateTransform, elev_arp: float) -> Optional[QgsFeature]:
     """Decolagem: trapézio simples de 2% (code 3-4) com 15 km."""
     if threshold not in ("A", "B"):
         raise ValueError("threshold deve ser 'A' ou 'B'.")
+    op = runway.approach_type_a if threshold == "A" else runway.approach_type_b
+    if op == ApproachType.NOT_OPERATIONAL:
+        return None
     th = runway.threshold_a if threshold == "A" else runway.threshold_b
     other = runway.threshold_b if threshold == "A" else runway.threshold_a
     params = TAKEOFF[runway.code_number]
@@ -489,14 +494,22 @@ def generate_transition(runway: Runway, transform: QgsCoordinateTransform, elev_
 def _most_demanding_approach(runway: Runway) -> ApproachType:
     """Devolve o tipo de operação mais restritivo entre as duas cabeceiras."""
     order = {
+        ApproachType.NOT_OPERATIONAL: -1,
         ApproachType.VISUAL: 0,
         ApproachType.NON_PRECISION: 1,
         ApproachType.PRECISION_CAT_I: 2,
         ApproachType.PRECISION_CAT_II: 3,
         ApproachType.PRECISION_CAT_III: 4,
     }
+    operational = [
+        approach
+        for approach in (runway.approach_type_a, runway.approach_type_b)
+        if approach != ApproachType.NOT_OPERATIONAL
+    ]
+    if not operational:
+        return ApproachType.VISUAL
     return max(
-        (runway.approach_type_a, runway.approach_type_b),
+        operational,
         key=lambda t: order.get(t, 0),
     )
 
@@ -550,8 +563,12 @@ def build_pbzpa_layer(runway: Runway) -> QgsVectorLayer:
     feats.append(generate_conical(runway, transform, elev_arp))
     feats.extend(generate_approach(runway, "A", transform, elev_arp))
     feats.extend(generate_approach(runway, "B", transform, elev_arp))
-    feats.append(generate_takeoff(runway, "A", transform, elev_arp))
-    feats.append(generate_takeoff(runway, "B", transform, elev_arp))
+    takeoff_a = generate_takeoff(runway, "A", transform, elev_arp)
+    if takeoff_a is not None:
+        feats.append(takeoff_a)
+    takeoff_b = generate_takeoff(runway, "B", transform, elev_arp)
+    if takeoff_b is not None:
+        feats.append(takeoff_b)
 
     layer.dataProvider().addFeatures(feats)
     layer.updateExtents()
