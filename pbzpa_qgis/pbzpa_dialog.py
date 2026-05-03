@@ -35,7 +35,7 @@ from qgis.core import (
     Qgis,
 )
 
-from .coordinate_widget import CoordinateFieldWidget
+from .coordinate_widget import CoordinateFieldWidget, ElevationFieldWidget
 from .core.runway import ApproachType, ProjectType, Runway, RunwayType, SSPVSector, Threshold
 from .core.surfaces import build_pbzpa_layer
 from .core.opea_detection import create_opea_layer
@@ -78,57 +78,36 @@ class PBZPADialog(QDialog, FORM_CLASS):
         canvas = self.iface.mapCanvas()
         
         # Criar widgets para coordenadas da cabeceira A
-        self.lonA_widget = CoordinateFieldWidget(canvas=canvas)
-        self.lonA_widget.mark_as_longitude()
-        self.latA_widget = CoordinateFieldWidget(canvas=canvas)
-        self.latA_widget.mark_as_latitude()
-        
+        self.lonA_widget = CoordinateFieldWidget(canvas=canvas, is_longitude=True)
+        self.latA_widget = CoordinateFieldWidget(canvas=canvas, is_longitude=False)
+
         # Criar widgets para coordenadas da cabeceira B
-        self.lonB_widget = CoordinateFieldWidget(canvas=canvas)
-        self.lonB_widget.mark_as_longitude()
-        self.latB_widget = CoordinateFieldWidget(canvas=canvas)
-        self.latB_widget.mark_as_latitude()
+        self.lonB_widget = CoordinateFieldWidget(canvas=canvas, is_longitude=True)
+        self.latB_widget = CoordinateFieldWidget(canvas=canvas, is_longitude=False)
+
+        # Criar widgets de elevação com captura de raster
+        self.elevA_widget = ElevationFieldWidget(canvas=canvas)
+        self.elevB_widget = ElevationFieldWidget(canvas=canvas)
         
-        # Encontrar os campos originais e guardar referências
-        original_lonA = self.lineLonA
-        original_latA = self.lineLatA
-        original_lonB = self.lineLonB
-        original_latB = self.lineLatB
-        
-        # Conectar alterações para sincronizar com os originais
-        self.lonA_widget.value_changed.connect(
-            lambda txt: setattr(original_lonA, '_value', txt) or None
-        )
-        self.latA_widget.value_changed.connect(
-            lambda txt: setattr(original_latA, '_value', txt) or None
-        )
-        self.lonB_widget.value_changed.connect(
-            lambda txt: setattr(original_lonB, '_value', txt) or None
-        )
-        self.latB_widget.value_changed.connect(
-            lambda txt: setattr(original_latB, '_value', txt) or None
-        )
-        
-        # Substituir os widgets na form layout
+        # Substituir campos originais (do .ui) pelos novos widgets
+        replacements = {
+            self.lineLonA: ("lonA", self.lonA_widget),
+            self.lineLatA: ("latA", self.latA_widget),
+            self.lineLonB: ("lonB", self.lonB_widget),
+            self.lineLatB: ("latB", self.latB_widget),
+            self.lineElevA: ("elevA", self.elevA_widget),
+            self.lineElevB: ("elevB", self.elevB_widget),
+        }
         form_layout = self.formAerodromo
-        
-        # Encontrar as linhas dos campos e substituir
         for i in range(form_layout.rowCount()):
-            label_widget = form_layout.itemAt(i, 0).widget()
-            field_widget = form_layout.itemAt(i, 1).widget()
-            
-            if field_widget == original_lonA:
-                form_layout.setWidget(i, 1, self.lonA_widget)
-                self.lineLonA = self.lonA_widget
-            elif field_widget == original_latA:
-                form_layout.setWidget(i, 1, self.latA_widget)
-                self.lineLatA = self.latA_widget
-            elif field_widget == original_lonB:
-                form_layout.setWidget(i, 1, self.lonB_widget)
-                self.lineLonB = self.lonB_widget
-            elif field_widget == original_latB:
-                form_layout.setWidget(i, 1, self.latB_widget)
-                self.lineLatB = self.latB_widget
+            item = form_layout.itemAt(i, 1)
+            if item is None:
+                continue
+            original = item.widget()
+            if original in replacements:
+                attr_name, new_widget = replacements[original]
+                form_layout.setWidget(i, 1, new_widget)
+                setattr(self, f"line{attr_name[0].upper()}{attr_name[1:]}", new_widget)
     
     def _setup_reference_combos(self) -> None:
         """Preenche combos que o Qt Designer deixa vazios ou sem userData."""
@@ -256,6 +235,9 @@ class PBZPADialog(QDialog, FORM_CLASS):
         )
         if path:
             self.lineRaster.setText(path)
+            # Propagar caminho do raster para widgets de elevação
+            self.elevA_widget.set_raster_path(path)
+            self.elevB_widget.set_raster_path(path)
 
     def on_run_analysis(self) -> None:
         if self._surfaces_layer is None or self._opea_layer is None:
