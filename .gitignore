@@ -49,3 +49,31 @@ imagery/
 
 # Bundle gerado para distribuicao do historico
 pbzpa_qgis.bundle
+
+# Artefatos locais para registro INPI
+inpi_artifacts/
+
+# Scripts e arquivos de commit auxiliares
+.commit_message.txt
+.commit_mira_message.txt
+commit_and_push.py
+commit_push_final.py
+commit_push_windows.py
+commit_push_with_gitpython.py
+git_status.sh
+list_files_for_commit.py
+
+# Documentos INPI e análise de skills (gerados localmente)
+CORRECAO_ZIP_IMPLEMENTADA.md
+00_LEIA_PRIMEIRO.md
+GUIA_RAPIDO_REFERENCIA.md
+GUIA_SUBMISSAO_QGIS.md
+INDICE_ANALISE_SKILLS.md
+INDICE_DOCUMENTOS_E_SCRIPTS.md
+RESUMO_EXECUTIVO_SKILLS.md
+SKILLS_NECESSARIOS.md
+SUMARIO_VISUAL.py
+prepare_inpi_registration.py
+cleanup_old_zips.py
+create_plugin_zip.py
+release.py
