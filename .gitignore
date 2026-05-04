@@ -64,6 +64,7 @@ git_status.sh
 list_files_for_commit.py
 
 # Documentos INPI e análise de skills (gerados localmente)
+ROADMAP_DETALHADO_12_SEMANAS.md
 CORRECAO_ZIP_IMPLEMENTADA.md
 00_LEIA_PRIMEIRO.md
 GUIA_RAPIDO_REFERENCIA.md
