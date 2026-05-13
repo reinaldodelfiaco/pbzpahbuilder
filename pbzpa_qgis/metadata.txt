@@ -30,3 +30,9 @@ plugin_dependencies=
 # Idiomas suportados pela tradução (.qm)
 # Disponíveis em i18n/
 hasProcessingProvider=yes
+
+license=MIT
+licenseUrl=https://opensource.org/licenses/MIT
+
+# Registro de Software no INPI
+# Processo: BR512026003065-0

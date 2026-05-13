@@ -141,4 +141,23 @@ Consulte o manual completo em [docs/manual_usuario.md](docs/manual_usuario.md).
 
 ## Licenca
 
-Distribuido sob a licenca **GPLv3**. Veja [LICENSE](LICENSE).
+Este software esta licenciado sob a **Licenca MIT**, permitindo uso comercial, modificacao e redistribuicao com atribuicao obrigatoria.
+
+**Registro de Software no INPI**
+- Processo: **BR512026003065-0**
+- Instituto Nacional da Propriedade Industrial (INPI)
+
+### Termos de Uso e Obrigacoes
+
+1. **Atribuicao** — Qualquer publicacao, apresentacao ou trabalho derivado que utilize ou se baseie neste software deve incluir mencao explicita aos autores originais (Fiaco) e referenciar o repositorio oficial.
+
+2. **Conformidade Normativa** — Ao utilizar este software, o usuario concorda em cumprir todas as normas aplicaveis, em particular:
+  - Normas do Comando da Aeronautica (ICA 11-3, ICA 11-408, ICA 63-19)
+  - Regulacoes da ANAC (RBAC 154 e 155)
+  - Convencoes cartograficas do Exercito Brasileiro (T 34-700)
+
+3. **Sem Garantia** — O software e fornecido "como esta", sem garantias de qualquer tipo, incluindo adequacao para fins especificos.
+
+4. **Propriedade Intelectual** — Todos os direitos de propriedade intelectual da obra original sao reservados aos detentores dos direitos autorais.
+
+Consulte o arquivo [LICENSE](./LICENSE) para o texto completo da licenca.
