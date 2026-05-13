@@ -13,9 +13,11 @@ módulos de geração, detecção e exportação. O diálogo contém abas:
 from __future__ import annotations
 
 import os
+import json
 from typing import Optional
 
 from qgis.PyQt import uic
+<<<<<<< HEAD
 from qgis.PyQt.QtWidgets import (
     QComboBox,
     QDialog,
@@ -29,15 +31,30 @@ from qgis.PyQt.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+=======
+from qgis.PyQt.QtCore import Qt
+from qgis.PyQt.QtWidgets import QDialog, QFileDialog, QMessageBox
+>>>>>>> b3f2f20 (ajuste na captura das coordenadas e regras para criação do PBZPH)
 from qgis.core import (
+    QgsCoordinateReferenceSystem,
+    QgsCoordinateTransform,
     QgsMessageLog,
+    QgsPointXY,
     QgsProject,
+    QgsRaster,
+    QgsRasterLayer,
     Qgis,
 )
+from qgis.gui import QgsMapToolEmitPoint
 
+<<<<<<< HEAD
 from .coordinate_widget import CoordinateFieldWidget, ElevationFieldWidget
 from .core.runway import ApproachType, ProjectType, Runway, RunwayType, SSPVSector, Threshold
 from .core.surfaces import build_pbzpa_layer
+=======
+from .core.runway import ApproachType, Heliponto, Runway, RunwayType, Threshold
+from .core.surfaces import build_pbzpa_layer, build_pbzph_layer
+>>>>>>> b3f2f20 (ajuste na captura das coordenadas e regras para criação do PBZPH)
 from .core.opea_detection import create_opea_layer
 from .core.conflict_analysis import analyze_conflicts
 from .export.kml_exporter import export_layers_to_kml
@@ -60,11 +77,18 @@ class PBZPADialog(QDialog, FORM_CLASS):
         self.iface = iface
         self._surfaces_layer = None
         self._opea_layer = None
+<<<<<<< HEAD
         
         # Substituir campos de coordenadas por widgets com mira
         self._setup_coordinate_widgets()
         self._setup_reference_combos()
         self._setup_sysaga_controls()
+=======
+        self._capture_target: Optional[str] = None
+        self._previous_map_tool = None
+        self._capture_tool = QgsMapToolEmitPoint(self.iface.mapCanvas())
+        self._capture_tool.canvasClicked.connect(self._on_canvas_clicked)
+>>>>>>> b3f2f20 (ajuste na captura das coordenadas e regras para criação do PBZPH)
 
         # Conexões (objectName setado no .ui)
         self.btnGerarSuperficies.clicked.connect(self.on_generate_surfaces)
@@ -72,6 +96,12 @@ class PBZPADialog(QDialog, FORM_CLASS):
         self.btnExportarKML.clicked.connect(self.on_export_kml)
         self.btnExportarDXF.clicked.connect(self.on_export_dxf)
         self.btnSelecionarRaster.clicked.connect(self.on_select_raster)
+        self.btnCarregarJSON.clicked.connect(self.on_load_example_json)
+        self.btnAlvoA.clicked.connect(lambda: self._start_capture("A"))
+        self.btnAlvoB.clicked.connect(lambda: self._start_capture("B"))
+        self.btnAlvoHRP.clicked.connect(lambda: self._start_capture("HRP"))
+        self.cmbTipoAerodromo.currentIndexChanged.connect(self._refresh_mode_controls)
+        self._refresh_mode_controls()
 
     def _setup_coordinate_widgets(self) -> None:
         """Substitui campos de coordenadas simples por widgets com mira."""
@@ -163,6 +193,16 @@ class PBZPADialog(QDialog, FORM_CLASS):
     # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
+    def _is_heliponto_mode(self) -> bool:
+        return self.cmbTipoAerodromo.currentIndex() == 1
+
+    def _refresh_mode_controls(self, *_args) -> None:
+        heli_mode = self._is_heliponto_mode()
+        self.groupCabA.setEnabled(not heli_mode)
+        self.groupCabB.setEnabled(not heli_mode)
+        self.groupClassificacao.setEnabled(not heli_mode)
+        self.groupHeliponto.setEnabled(heli_mode)
+
     def _build_runway(self) -> Optional[Runway]:
         try:
             th_a = Threshold(
@@ -195,13 +235,187 @@ class PBZPADialog(QDialog, FORM_CLASS):
             QMessageBox.warning(self, "Dados inválidos", f"Verifique os campos: {exc}")
             return None
 
+    def _build_heliponto(self) -> Optional[Heliponto]:
+        try:
+            hrp = Threshold(
+                designator=self.lineCabA.text().strip() or "HRP",
+                longitude=float(self.lineHrpLon.text().replace(",", ".")),
+                latitude=float(self.lineHrpLat.text().replace(",", ".")),
+                elevation_m=float(self.lineHrpElev.text().replace(",", ".")),
+            )
+            tlof_diameter = float(self.lineTlofDiameter.text().replace(",", ".") or 25)
+            fmgo_diameter = float(self.lineFmgoDiameter.text().replace(",", ".") or 30)
+            return Heliponto(
+                name=self.lineICAO.text().strip().upper() or "PBZPH",
+                hrp=hrp,
+                tlof_diameter_m=tlof_diameter,
+                fmgo_diameter_m=fmgo_diameter,
+            )
+        except Exception as exc:  # noqa: BLE001
+            QMessageBox.warning(self, "Dados inválidos", f"Verifique os campos do heliponto: {exc}")
+            return None
+
     def _log(self, msg: str, level=Qgis.Info) -> None:
         QgsMessageLog.logMessage(msg, "PBZPA/PBZPH", level=level)
+
+    def _start_capture(self, target: str) -> None:
+        self._capture_target = target
+        self._previous_map_tool = self.iface.mapCanvas().mapTool()
+        self.iface.mapCanvas().setMapTool(self._capture_tool)
+        self.iface.messageBar().pushInfo(
+            "PBZPA/PBZPH",
+            f"Clique no mapa para capturar a cabeceira {target}.",
+        )
+
+    def _restore_map_tool(self) -> None:
+        if self._previous_map_tool is not None:
+            self.iface.mapCanvas().setMapTool(self._previous_map_tool)
+        self._previous_map_tool = None
+
+    def _target_fields(self, target: str):
+        if target == "A":
+            return self.lineLonA, self.lineLatA, self.lineElevA
+        if target == "HRP":
+            return self.lineHrpLon, self.lineHrpLat, self.lineHrpElev
+        return self.lineLonB, self.lineLatB, self.lineElevB
+
+    def _format_number(self, value: float, decimals: int) -> str:
+        return f"{value:.{decimals}f}"
+
+    def _set_combo_value(self, combo, value: str) -> None:
+        index = combo.findText(value)
+        if index >= 0:
+            combo.setCurrentIndex(index)
+
+    def _clear_runway_fields(self) -> None:
+        self.lineCabA.clear()
+        self.lineLonA.clear()
+        self.lineLatA.clear()
+        self.lineElevA.clear()
+        self.lineCabB.clear()
+        self.lineLonB.clear()
+        self.lineLatB.clear()
+        self.lineElevB.clear()
+
+    def _clear_heliponto_fields(self) -> None:
+        self.lineHrpLon.clear()
+        self.lineHrpLat.clear()
+        self.lineHrpElev.clear()
+        self.lineTlofDiameter.clear()
+        self.lineFmgoDiameter.clear()
+
+    def on_load_example_json(self) -> None:
+        path, _ = QFileDialog.getOpenFileName(self, "Carregar JSON de exemplo", "", "JSON (*.json)")
+        if not path:
+            return
+        try:
+            with open(path, encoding="utf-8") as handle:
+                payload = json.load(handle)
+        except Exception as exc:  # noqa: BLE001
+            QMessageBox.critical(self, "Erro", f"Falha ao ler JSON: {exc}")
+            return
+
+        tipo = str(payload.get("tipo", "")).lower()
+        if tipo == "heliponto" or "tlof" in payload:
+            self.cmbTipoAerodromo.setCurrentIndex(1)
+            self._clear_heliponto_fields()
+            self.lineICAO.setText(payload.get("icao_code", payload.get("name", "PBZPH")))
+            tlof = payload.get("tlof", {}).get("centro", {})
+            self.lineHrpLon.setText(str(tlof.get("longitude", "")))
+            self.lineHrpLat.setText(str(tlof.get("latitude", "")))
+            self.lineHrpElev.setText(str(tlof.get("elevation_m", "")))
+            self.lineTlofDiameter.setText(str(payload.get("tlof", {}).get("diametro_m", 25)))
+            self.lineFmgoDiameter.setText(str(payload.get("fmgo", {}).get("diametro_m", 30)))
+            return
+
+        thresholds = payload.get("thresholds", {})
+        self.cmbTipoAerodromo.setCurrentIndex(0)
+        self._clear_runway_fields()
+        self.lineICAO.setText(payload.get("icao_code", "----"))
+        self.lineCabA.setText(str(thresholds.get("A", {}).get("designator", "A")))
+        self.lineLonA.setText(str(thresholds.get("A", {}).get("longitude", "")))
+        self.lineLatA.setText(str(thresholds.get("A", {}).get("latitude", "")))
+        self.lineElevA.setText(str(thresholds.get("A", {}).get("elevation_m", "")))
+        self.lineCabB.setText(str(thresholds.get("B", {}).get("designator", "B")))
+        self.lineLonB.setText(str(thresholds.get("B", {}).get("longitude", "")))
+        self.lineLatB.setText(str(thresholds.get("B", {}).get("latitude", "")))
+        self.lineElevB.setText(str(thresholds.get("B", {}).get("elevation_m", "")))
+        self._set_combo_value(self.cmbCodeNumber, str(payload.get("code_number", 1)))
+        self._set_combo_value(self.cmbCodeLetter, str(payload.get("code_letter", "A")).upper())
+        self._set_combo_value(self.cmbRunwayType, str(payload.get("runway_type", "non_instrument")))
+        self._set_combo_value(self.cmbApproachA, str(thresholds.get("A", {}).get("approach_type", "visual")))
+        self._set_combo_value(self.cmbApproachB, str(thresholds.get("B", {}).get("approach_type", "visual")))
+
+    def _find_raster_layer(self) -> Optional[QgsRasterLayer]:
+        path = self.lineRaster.text().strip()
+        if path:
+            raster = QgsRasterLayer(path, os.path.basename(path) or "pbzpa_raster")
+            if raster.isValid():
+                return raster
+        for layer in QgsProject.instance().mapLayers().values():
+            if isinstance(layer, QgsRasterLayer) and layer.isValid():
+                return layer
+        return None
+
+    def _sample_elevation(self, point: QgsPointXY) -> Optional[float]:
+        raster = self._find_raster_layer()
+        if raster is None:
+            return None
+        try:
+            canvas_crs = self.iface.mapCanvas().mapSettings().destinationCrs()
+            to_raster = QgsCoordinateTransform(canvas_crs, raster.crs(), QgsProject.instance())
+            raster_point = to_raster.transform(point)
+            result = raster.dataProvider().identify(raster_point, QgsRaster.IdentifyFormatValue)
+            if not result.isValid():
+                return None
+            values = result.results()
+            for band in sorted(values):
+                value = values[band]
+                if value is None:
+                    continue
+                try:
+                    return float(value)
+                except (TypeError, ValueError):
+                    continue
+        except Exception as exc:  # noqa: BLE001
+            self._log(f"Falha ao amostrar elevação: {exc}", Qgis.Warning)
+        return None
+
+    def _on_canvas_clicked(self, point, button) -> None:
+        if self._capture_target is None or button != Qt.LeftButton:
+            return
+
+        try:
+            canvas = self.iface.mapCanvas()
+            to_geo = QgsCoordinateTransform(
+                canvas.mapSettings().destinationCrs(),
+                QgsCoordinateReferenceSystem("EPSG:4326"),
+                QgsProject.instance(),
+            )
+            geo_point = to_geo.transform(point)
+            elevation = self._sample_elevation(point)
+            lon_field, lat_field, elev_field = self._target_fields(self._capture_target)
+            lon_field.setText(self._format_number(geo_point.x(), 8))
+            lat_field.setText(self._format_number(geo_point.y(), 8))
+            if elevation is not None:
+                elev_field.setText(self._format_number(elevation, 2))
+            else:
+                QMessageBox.information(
+                    self,
+                    "Elevação não encontrada",
+                    "As coordenadas foram preenchidas, mas não foi possível extrair a elevação do raster disponível.",
+                )
+        except Exception as exc:  # noqa: BLE001
+            QMessageBox.critical(self, "Erro", f"Falha ao capturar ponto no mapa: {exc}")
+        finally:
+            self._capture_target = None
+            self._restore_map_tool()
 
     # ------------------------------------------------------------------
     # Slots
     # ------------------------------------------------------------------
     def on_generate_surfaces(self) -> None:
+<<<<<<< HEAD
         runway = self._build_runway()
         if runway is None:
             return
@@ -213,8 +427,19 @@ class PBZPADialog(QDialog, FORM_CLASS):
                 "até a conferência dos campos autenticados do Anexo B do SYSAGA.",
             )
             return
+=======
+>>>>>>> b3f2f20 (ajuste na captura das coordenadas e regras para criação do PBZPH)
         try:
-            layer = build_pbzpa_layer(runway)
+            if self._is_heliponto_mode():
+                heliport = self._build_heliponto()
+                if heliport is None:
+                    return
+                layer = build_pbzph_layer(heliport)
+            else:
+                runway = self._build_runway()
+                if runway is None:
+                    return
+                layer = build_pbzpa_layer(runway)
         except Exception as exc:  # noqa: BLE001
             QMessageBox.critical(self, "Erro", f"Falha na geração: {exc}")
             self._log(str(exc), Qgis.Critical)

@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # -*- coding: utf-8 -*-
 """Geração paramétrica das Superfícies Limitadoras de Obstáculos (SLO).
 
@@ -332,6 +333,357 @@ def generate_conical(runway: Runway, transform: QgsCoordinateTransform, elev_arp
     return feat
 
 
+=======
+# -*- coding: utf-8 -*-
+"""Geração paramétrica das Superfícies Limitadoras de Obstáculos (SLO).
+
+Implementa as superfícies definidas pela ICA 11-3, RBAC 154 e Anexo 14 da
+OACI:
+
+* Faixa de pista (Runway Strip)
+* Superfície Horizontal Interna (Inner Horizontal)
+* Superfície Cônica (Conical)
+* Superfície de Aproximação (Approach) — multi-seção
+* Superfície de Transição (Transition)
+* Superfície de Decolagem (Take-off climb)
+
+Todas as geometrias são geradas em **PolygonZ** (3D) num sistema UTM
+SIRGAS 2000 detectado automaticamente a partir da coordenada da pista.
+A altitude (Z) é dada em metros acima do nível médio do mar (AMSL),
+calculada a partir da elevação informada da pista somada à altura
+relativa de cada superfície no ponto.
+
+A camada de saída é construída pelos orquestradores `build_pbzpa_layer`
+e `build_pbzph_layer` deste módulo.
+"""
+from __future__ import annotations
+
+import math
+from dataclasses import dataclass
+from typing import List, Sequence, Tuple
+
+from qgis.core import (
+    QgsCoordinateReferenceSystem,
+    QgsCoordinateTransform,
+    QgsFeature,
+    QgsField,
+    QgsFields,
+    QgsGeometry,
+    QgsPoint,
+    QgsPointXY,
+    QgsProject,
+    QgsVectorLayer,
+    QgsWkbTypes,
+)
+from qgis.PyQt.QtCore import QVariant
+
+from .runway import ApproachType, Heliponto, Runway, RunwayType
+from .utm_utils import epsg_for_lonlat
+
+
+# ======================================================================
+# Tabelas oficiais (ICA 11-3 / Anexo 14 OACI / RBAC 154)
+# ======================================================================
+
+@dataclass(frozen=True)
+class _ApproachParams:
+    """Parâmetros da Superfície de Aproximação."""
+    inner_edge_m: float        # largura da borda interna
+    distance_threshold_m: float  # distância do limiar
+    divergence: float          # 0.10 = 10 %, 0.15 = 15 %
+    sections: Sequence[Tuple[float, float]]
+    # Lista de (comprimento_m, gradiente). gradiente=0 ⇒ horizontal.
+
+
+@dataclass(frozen=True)
+class _ConicalParams:
+    slope: float
+    height_m: float
+
+
+@dataclass(frozen=True)
+class _InnerHorizontalParams:
+    radius_m: float
+    height_m: float
+
+
+@dataclass(frozen=True)
+class _TransitionParams:
+    slope: float
+
+
+@dataclass(frozen=True)
+class _TakeoffParams:
+    inner_edge_m: float
+    distance_runway_end_m: float
+    divergence: float
+    final_width_m: float
+    length_m: float
+    slope: float
+
+
+# Inner Horizontal (raio em m, altura em m sobre ARP) ------------------
+INNER_HORIZONTAL = {
+    (1, RunwayType.NON_INSTRUMENT, ApproachType.VISUAL): _InnerHorizontalParams(2000, 45),
+    (2, RunwayType.NON_INSTRUMENT, ApproachType.VISUAL): _InnerHorizontalParams(2500, 45),
+    (3, RunwayType.NON_INSTRUMENT, ApproachType.VISUAL): _InnerHorizontalParams(4000, 45),
+    (4, RunwayType.NON_INSTRUMENT, ApproachType.VISUAL): _InnerHorizontalParams(4000, 45),
+    (1, RunwayType.INSTRUMENT, ApproachType.NON_PRECISION): _InnerHorizontalParams(3500, 45),
+    (2, RunwayType.INSTRUMENT, ApproachType.NON_PRECISION): _InnerHorizontalParams(3500, 45),
+    (3, RunwayType.INSTRUMENT, ApproachType.NON_PRECISION): _InnerHorizontalParams(4000, 45),
+    (4, RunwayType.INSTRUMENT, ApproachType.NON_PRECISION): _InnerHorizontalParams(4000, 45),
+    (3, RunwayType.INSTRUMENT, ApproachType.PRECISION_CAT_I): _InnerHorizontalParams(4000, 45),
+    (4, RunwayType.INSTRUMENT, ApproachType.PRECISION_CAT_I): _InnerHorizontalParams(4000, 45),
+    (3, RunwayType.INSTRUMENT, ApproachType.PRECISION_CAT_II): _InnerHorizontalParams(4000, 45),
+    (4, RunwayType.INSTRUMENT, ApproachType.PRECISION_CAT_II): _InnerHorizontalParams(4000, 45),
+    (3, RunwayType.INSTRUMENT, ApproachType.PRECISION_CAT_III): _InnerHorizontalParams(4000, 45),
+    (4, RunwayType.INSTRUMENT, ApproachType.PRECISION_CAT_III): _InnerHorizontalParams(4000, 45),
+}
+
+# Cônica ---------------------------------------------------------------
+CONICAL = {
+    1: _ConicalParams(slope=0.05, height_m=35),
+    2: _ConicalParams(slope=0.05, height_m=55),
+    3: _ConicalParams(slope=0.05, height_m=75),
+    4: _ConicalParams(slope=0.05, height_m=100),
+}
+
+# Aproximação ----------------------------------------------------------
+APPROACH = {
+    # Visual
+    (1, ApproachType.VISUAL): _ApproachParams(60, 30, 0.10, [(1600, 0.05)]),
+    (2, ApproachType.VISUAL): _ApproachParams(80, 60, 0.10, [(2500, 0.04)]),
+    (3, ApproachType.VISUAL): _ApproachParams(150, 60, 0.10, [(3000, 0.0333)]),
+    (4, ApproachType.VISUAL): _ApproachParams(150, 60, 0.10, [(3000, 0.025)]),
+    # Não-precisão
+    (1, ApproachType.NON_PRECISION): _ApproachParams(150, 60, 0.15, [(2500, 0.0333)]),
+    (2, ApproachType.NON_PRECISION): _ApproachParams(150, 60, 0.15, [(2500, 0.0333)]),
+    (3, ApproachType.NON_PRECISION): _ApproachParams(
+        300, 60, 0.15, [(3000, 0.020), (3600, 0.025), (8400, 0.0)]
+    ),
+    (4, ApproachType.NON_PRECISION): _ApproachParams(
+        300, 60, 0.15, [(3000, 0.020), (3600, 0.025), (8400, 0.0)]
+    ),
+    # Precisão CAT I
+    (1, ApproachType.PRECISION_CAT_I): _ApproachParams(
+        150, 60, 0.15, [(3000, 0.025), (12000, 0.030)]
+    ),
+    (2, ApproachType.PRECISION_CAT_I): _ApproachParams(
+        150, 60, 0.15, [(3000, 0.025), (12000, 0.030)]
+    ),
+    (3, ApproachType.PRECISION_CAT_I): _ApproachParams(
+        300, 60, 0.15, [(3000, 0.020), (3600, 0.025), (8400, 0.0)]
+    ),
+    (4, ApproachType.PRECISION_CAT_I): _ApproachParams(
+        300, 60, 0.15, [(3000, 0.020), (3600, 0.025), (8400, 0.0)]
+    ),
+    # Precisão CAT II/III: mesmas dimensões da CAT I (code 3 e 4)
+    (3, ApproachType.PRECISION_CAT_II): _ApproachParams(
+        300, 60, 0.15, [(3000, 0.020), (3600, 0.025), (8400, 0.0)]
+    ),
+    (4, ApproachType.PRECISION_CAT_II): _ApproachParams(
+        300, 60, 0.15, [(3000, 0.020), (3600, 0.025), (8400, 0.0)]
+    ),
+    (3, ApproachType.PRECISION_CAT_III): _ApproachParams(
+        300, 60, 0.15, [(3000, 0.020), (3600, 0.025), (8400, 0.0)]
+    ),
+    (4, ApproachType.PRECISION_CAT_III): _ApproachParams(
+        300, 60, 0.15, [(3000, 0.020), (3600, 0.025), (8400, 0.0)]
+    ),
+}
+
+# Transição ------------------------------------------------------------
+TRANSITION = {
+    (1, RunwayType.NON_INSTRUMENT): _TransitionParams(0.20),
+    (2, RunwayType.NON_INSTRUMENT): _TransitionParams(0.20),
+    (3, RunwayType.NON_INSTRUMENT): _TransitionParams(0.143),
+    (4, RunwayType.NON_INSTRUMENT): _TransitionParams(0.143),
+    (1, RunwayType.INSTRUMENT): _TransitionParams(0.20),
+    (2, RunwayType.INSTRUMENT): _TransitionParams(0.20),
+    (3, RunwayType.INSTRUMENT): _TransitionParams(0.143),
+    (4, RunwayType.INSTRUMENT): _TransitionParams(0.143),
+}
+
+# Decolagem ------------------------------------------------------------
+TAKEOFF = {
+    1: _TakeoffParams(60, 30, 0.10, 380, 1600, 0.05),
+    2: _TakeoffParams(80, 60, 0.10, 580, 2500, 0.04),
+    3: _TakeoffParams(180, 60, 0.125, 1800, 15000, 0.02),
+    4: _TakeoffParams(180, 60, 0.125, 1800, 15000, 0.02),
+}
+
+# Faixa de pista (semi-largura por classe, em metros) ------------------
+STRIP_HALF_WIDTH = {
+    (1, RunwayType.NON_INSTRUMENT): 30,
+    (2, RunwayType.NON_INSTRUMENT): 40,
+    (3, RunwayType.NON_INSTRUMENT): 150,
+    (4, RunwayType.NON_INSTRUMENT): 150,
+    (1, RunwayType.INSTRUMENT): 75,
+    (2, RunwayType.INSTRUMENT): 75,
+    (3, RunwayType.INSTRUMENT): 150,
+    (4, RunwayType.INSTRUMENT): 150,
+}
+
+STRIP_END_EXTENSION = {1: 30, 2: 60, 3: 60, 4: 60}
+
+
+# ======================================================================
+# Utilitários geométricos
+# ======================================================================
+
+def _project_lonlat_to_utm(lon: float, lat: float, transform: QgsCoordinateTransform) -> Tuple[float, float]:
+    pt = transform.transform(QgsPointXY(lon, lat))
+    return pt.x(), pt.y()
+
+
+def _unit_vector(p1: Tuple[float, float], p2: Tuple[float, float]) -> Tuple[float, float]:
+    dx, dy = p2[0] - p1[0], p2[1] - p1[1]
+    norm = math.hypot(dx, dy)
+    if norm == 0:
+        raise ValueError("Pontos coincidentes; não é possível extrair direção.")
+    return dx / norm, dy / norm
+
+
+def _perp(v: Tuple[float, float]) -> Tuple[float, float]:
+    """Vetor perpendicular (rotação +90°)."""
+    return -v[1], v[0]
+
+
+def _add(p: Tuple[float, float], v: Tuple[float, float], scale: float = 1.0) -> Tuple[float, float]:
+    return p[0] + v[0] * scale, p[1] + v[1] * scale
+
+
+def _circle_points(
+    center: Tuple[float, float],
+    radius_m: float,
+    z: float,
+    segments: int = 96,
+) -> List[Tuple[float, float, float]]:
+    pts: List[Tuple[float, float, float]] = []
+    for i in range(segments + 1):
+        ang = (2.0 * math.pi * i) / segments
+        x = center[0] + radius_m * math.cos(ang)
+        y = center[1] + radius_m * math.sin(ang)
+        pts.append((x, y, z))
+    return pts
+
+
+# ======================================================================
+# Construção de QgsVectorLayer base
+# ======================================================================
+
+def _surface_fields() -> QgsFields:
+    fields = QgsFields()
+    fields.append(QgsField("id", QVariant.Int))
+    fields.append(QgsField("tipo", QVariant.String))
+    fields.append(QgsField("subtipo", QVariant.String))
+    fields.append(QgsField("cota_min_m", QVariant.Double))
+    fields.append(QgsField("cota_max_m", QVariant.Double))
+    fields.append(QgsField("gradiente", QVariant.Double))
+    fields.append(QgsField("origem", QVariant.String))
+    return fields
+
+
+def create_surfaces_layer(crs: QgsCoordinateReferenceSystem, name: str = "PBZPA - Superfícies") -> QgsVectorLayer:
+    """Cria um QgsVectorLayer em memória, PolygonZ, com os campos padrão."""
+    uri = f"PolygonZ?crs={crs.authid()}"
+    layer = QgsVectorLayer(uri, name, "memory")
+    pr = layer.dataProvider()
+    pr.addAttributes(_surface_fields().toList())
+    layer.updateFields()
+    return layer
+
+
+# ======================================================================
+# Geração das superfícies
+# ======================================================================
+
+def generate_runway_strip(runway: Runway, transform: QgsCoordinateTransform, elev_arp: float) -> QgsFeature:
+    """Faixa de pista: retângulo em torno da pista física, plano horizontal na cota da cabeceira."""
+    half_w = STRIP_HALF_WIDTH[(runway.code_number, runway.runway_type)]
+    end_ext = STRIP_END_EXTENSION[runway.code_number]
+
+    a = _project_lonlat_to_utm(runway.threshold_a.longitude, runway.threshold_a.latitude, transform)
+    b = _project_lonlat_to_utm(runway.threshold_b.longitude, runway.threshold_b.latitude, transform)
+    u = _unit_vector(a, b)
+    n = _perp(u)
+
+    a_ext = _add(a, u, -end_ext)
+    b_ext = _add(b, u, end_ext)
+
+    p1 = _add(a_ext, n, half_w)
+    p2 = _add(b_ext, n, half_w)
+    p3 = _add(b_ext, n, -half_w)
+    p4 = _add(a_ext, n, -half_w)
+
+    z = elev_arp
+    ring = [QgsPoint(p1[0], p1[1], z), QgsPoint(p2[0], p2[1], z),
+            QgsPoint(p3[0], p3[1], z), QgsPoint(p4[0], p4[1], z),
+            QgsPoint(p1[0], p1[1], z)]
+    geom = QgsGeometry.fromPolygonXY([])  # placeholder
+    geom = QgsGeometry(geom)
+    # Construir PolygonZ via WKT para compatibilidade ampla
+    wkt = "POLYGON Z((" + ", ".join(f"{p.x()} {p.y()} {p.z()}" for p in ring) + "))"
+    geom = QgsGeometry.fromWkt(wkt)
+
+    feat = QgsFeature(_surface_fields())
+    feat.setGeometry(geom)
+    feat.setAttributes([1, "FAIXA_PISTA", "", z, z, 0.0, "ICA 11-3"])
+    return feat
+
+
+def generate_inner_horizontal(runway: Runway, transform: QgsCoordinateTransform, elev_arp: float) -> QgsFeature:
+    """Horizontal interna: envoltória de dois semicírculos centrados nas cabeceiras."""
+    most_demanding = _most_demanding_approach(runway)
+    params = INNER_HORIZONTAL[(runway.code_number, runway.runway_type, most_demanding)]
+    r = params.radius_m
+    z = elev_arp + params.height_m
+
+    a = _project_lonlat_to_utm(runway.threshold_a.longitude, runway.threshold_a.latitude, transform)
+    b = _project_lonlat_to_utm(runway.threshold_b.longitude, runway.threshold_b.latitude, transform)
+    u = _unit_vector(a, b)
+    heading = math.atan2(u[1], u[0])
+
+    pts = _envelope_pts(a, b, heading, r, z)
+    wkt = "POLYGON Z((" + ", ".join(f"{x} {y} {zz}" for x, y, zz in pts) + "))"
+    feat = QgsFeature(_surface_fields())
+    feat.setGeometry(QgsGeometry.fromWkt(wkt))
+    feat.setAttributes([2, "HORIZONTAL_INTERNA", most_demanding.value, z, z, 0.0, "ICA 11-3"])
+    return feat
+
+
+def generate_conical(runway: Runway, transform: QgsCoordinateTransform, elev_arp: float) -> QgsFeature:
+    """Cônica: anel ao redor da Horizontal Interna, ascendente em 5%."""
+    most_demanding = _most_demanding_approach(runway)
+    inner = INNER_HORIZONTAL[(runway.code_number, runway.runway_type, most_demanding)]
+    cone = CONICAL[runway.code_number]
+
+    r_inner = inner.radius_m
+    r_outer = r_inner + cone.height_m / cone.slope  # cota base + h/i = comprimento horizontal
+
+    a = _project_lonlat_to_utm(runway.threshold_a.longitude, runway.threshold_a.latitude, transform)
+    b = _project_lonlat_to_utm(runway.threshold_b.longitude, runway.threshold_b.latitude, transform)
+    u = _unit_vector(a, b)
+    heading = math.atan2(u[1], u[0])
+
+    z_inner = elev_arp + inner.height_m
+    z_outer = z_inner + cone.height_m
+
+    # Construir anel: contorno externo (sentido anti-horário) + interno (sentido horário)
+    outer_pts = _envelope_pts(a, b, heading, r_outer, z_outer)
+    inner_pts = list(reversed(_envelope_pts(a, b, heading, r_inner, z_inner)))
+
+    wkt_outer = ", ".join(f"{x} {y} {z}" for x, y, z in outer_pts)
+    wkt_inner = ", ".join(f"{x} {y} {z}" for x, y, z in inner_pts)
+    wkt = f"POLYGON Z(({wkt_outer}), ({wkt_inner}))"
+
+    feat = QgsFeature(_surface_fields())
+    feat.setGeometry(QgsGeometry.fromWkt(wkt))
+    feat.setAttributes([3, "CONICA", "", z_inner, z_outer, cone.slope, "ICA 11-3"])
+    return feat
+
+
+>>>>>>> b3f2f20 (ajuste na captura das coordenadas e regras para criação do PBZPH)
 def generate_approach(runway: Runway, threshold: str, transform: QgsCoordinateTransform, elev_arp: float) -> List[QgsFeature]:
     """Aproximação para uma das cabeceiras ('A' ou 'B'). Pode ter múltiplas seções."""
     if threshold not in ("A", "B"):
@@ -512,6 +864,7 @@ def _most_demanding_approach(runway: Runway) -> ApproachType:
         operational,
         key=lambda t: order.get(t, 0),
     )
+<<<<<<< HEAD
 
 
 def _envelope_pts(
@@ -573,3 +926,109 @@ def build_pbzpa_layer(runway: Runway) -> QgsVectorLayer:
     layer.dataProvider().addFeatures(feats)
     layer.updateExtents()
     return layer
+=======
+
+
+def _envelope_pts(
+    a: Tuple[float, float],
+    b: Tuple[float, float],
+    heading: float,
+    radius: float,
+    z: float,
+) -> List[Tuple[float, float, float]]:
+    """Gera o contorno de uma 'envoltória de pista' a uma certa distância radial."""
+    pts: List[Tuple[float, float, float]] = []
+    # Semicírculo do lado A (orientado heading + 90° → heading + 270°)
+    for i in range(65):
+        t = math.pi / 2 + i * math.pi / 64
+        ang = heading + t
+        x = a[0] + radius * math.cos(ang)
+        y = a[1] + radius * math.sin(ang)
+        pts.append((x, y, z))
+    # Semicírculo do lado B
+    for i in range(65):
+        t = -math.pi / 2 + i * math.pi / 64
+        ang = heading + t
+        x = b[0] + radius * math.cos(ang)
+        y = b[1] + radius * math.sin(ang)
+        pts.append((x, y, z))
+    pts.append(pts[0])
+    return pts
+
+
+# ======================================================================
+# Função-orquestradora
+# ======================================================================
+
+def build_pbzpa_layer(runway: Runway) -> QgsVectorLayer:
+    """Gera todas as superfícies do PBZPA num único QgsVectorLayer 3D."""
+    lon, lat = runway.midpoint_lonlat
+    epsg = epsg_for_lonlat(lon, lat)
+    src_crs = QgsCoordinateReferenceSystem("EPSG:4674")  # SIRGAS 2000 lat/lon
+    dst_crs = QgsCoordinateReferenceSystem(f"EPSG:{epsg}")
+    transform = QgsCoordinateTransform(src_crs, dst_crs, QgsProject.instance())
+
+    layer = create_surfaces_layer(dst_crs)
+    feats: List[QgsFeature] = []
+    elev_arp = runway.reference_elevation_m
+
+    feats.append(generate_runway_strip(runway, transform, elev_arp))
+    feats.append(generate_transition(runway, transform, elev_arp))
+    feats.append(generate_inner_horizontal(runway, transform, elev_arp))
+    feats.append(generate_conical(runway, transform, elev_arp))
+    feats.extend(generate_approach(runway, "A", transform, elev_arp))
+    feats.extend(generate_approach(runway, "B", transform, elev_arp))
+    feats.append(generate_takeoff(runway, "A", transform, elev_arp))
+    feats.append(generate_takeoff(runway, "B", transform, elev_arp))
+
+    layer.dataProvider().addFeatures(feats)
+    layer.updateExtents()
+    return layer
+
+
+def build_pbzph_layer(heliponto: Heliponto) -> QgsVectorLayer:
+    """Gera superfícies básicas de PBZPH centradas no HRP.
+
+    O conjunto inclui TLOF, FMGO e uma zona externa de segurança visual
+    para facilitar conferência cartográfica no QGIS.
+    """
+    lon, lat = heliponto.reference_lonlat
+    epsg = epsg_for_lonlat(lon, lat)
+    src_crs = QgsCoordinateReferenceSystem("EPSG:4674")
+    dst_crs = QgsCoordinateReferenceSystem(f"EPSG:{epsg}")
+    transform = QgsCoordinateTransform(src_crs, dst_crs, QgsProject.instance())
+
+    layer = create_surfaces_layer(dst_crs, name="PBZPH - Superfícies")
+    feats: List[QgsFeature] = []
+    center_xy = _project_lonlat_to_utm(heliponto.hrp.longitude, heliponto.hrp.latitude, transform)
+    elev = heliponto.reference_elevation_m
+
+    tlof_radius = max(heliponto.tlof_diameter_m, 1.0) / 2.0
+    fmgo_radius = max(heliponto.fmgo_diameter_m, tlof_radius * 1.2) / 2.0
+    safety_margin_m = max(5.0, 0.25 * tlof_radius)
+
+    feat_tlof = QgsFeature(layer.fields())
+    feat_tlof.setGeometry(QgsGeometry.fromPolygonXY([[
+        QgsPointXY(x, y) for x, y, _ in _circle_points(center_xy, tlof_radius, elev)
+    ]]))
+    feat_tlof.setAttributes([1, "PBZPH", "TLOF", elev, elev, 0.0, "PBZPH"])
+    feats.append(feat_tlof)
+
+    feat_fmgo = QgsFeature(layer.fields())
+    feat_fmgo.setGeometry(QgsGeometry.fromPolygonXY([[
+        QgsPointXY(x, y) for x, y, _ in _circle_points(center_xy, fmgo_radius, elev)
+    ]]))
+    feat_fmgo.setAttributes([2, "PBZPH", "FMGO", elev, elev, 0.0, "PBZPH"])
+    feats.append(feat_fmgo)
+
+    feat_safety = QgsFeature(layer.fields())
+    feat_safety.setGeometry(QgsGeometry.fromPolygonXY([[
+        QgsPointXY(x, y) for x, y, _ in _circle_points(center_xy, fmgo_radius + safety_margin_m, elev)
+    ]]))
+    feat_safety.setAttributes([3, "PBZPH", "SEGURANCA", elev, elev, 0.0, "PBZPH"])
+    feats.append(feat_safety)
+
+    layer.dataProvider().addFeatures(feats)
+    layer.updateExtents()
+    return layer
+>>>>>>> b3f2f20 (ajuste na captura das coordenadas e regras para criação do PBZPH)

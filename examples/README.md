@@ -14,6 +14,6 @@ e, quando disponível, um KML/DXF de saída esperada para validação.
 | `heli_demo/`      | —    | Heliponto demonstrativo (PBZPH)                       | —                   |
 
 > Como rodar um caso:
-> 1. Carregue o `runway.json` no diálogo do plugin (em desenvolvimento)
->    ou via Processing Toolbox: *PBZPA/PBZPH → Gerar Superfícies PBZPA*.
+> 1. Carregue o `runway.json` no diálogo do plugin usando o botão **Carregar JSON**
+>    ou via Processing Toolbox: *PBZPA/PBZPH → Gerar Superfícies PBZPA/PBZPH*.
 > 2. Compare as superfícies geradas com as imagens/KML de referência.
