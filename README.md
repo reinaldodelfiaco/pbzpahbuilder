@@ -1,6 +1,6 @@
-# PBZPA-QGIS
+# PBZPA/H BUILDER - A QGIS PLUGIN
 
-**PBZPA-QGIS** e um complemento para QGIS voltado a geracao de Planos Basicos de Zona de Protecao de Aerodromo (PBZPA) e de Heliponto (PBZPH), com apoio a analise de OPEA, exportacao cartografica e conferencia de anexos usados no SYSAGA.
+**PBZPA/H BUILDER - A QGIS PLUGIN** e um complemento para QGIS voltado a geracao de Planos Basicos de Zona de Protecao de Aerodromo (PBZPA) e de Heliponto (PBZPH), com apoio a analise de OPEA, exportacao cartografica e conferencia de anexos usados no SYSAGA.
 
 Versao atual: **0.3.0**
 
