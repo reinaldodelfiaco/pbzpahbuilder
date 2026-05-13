@@ -8,13 +8,13 @@ version=0.3.0
 author=Fiaco
 email=cmtefiaco@gmail.com
 
-tracker=https://github.com/<usuario>/pbzpa-qgis/issues
-repository=https://github.com/<usuario>/pbzpa-qgis
+tracker=https://github.com/reinaldodelfiaco/pbzpahbuilder/issues
+repository=https://github.com/reinaldodelfiaco/pbzpahbuilder
 
 # Tags são separadas por vírgula
 tags=aviation,airport,heliport,aerodrome,PBZPA,PBZPH,ICA,ANAC,obstacle,vector,raster,3D,KML,DXF,DWG,brazil
 
-homepage=https://github.com/<usuario>/pbzpa-qgis
+homepage=https://github.com/reinaldodelfiaco/pbzpahbuilder
 category=Plugins
 icon=resources/icon.png
 
