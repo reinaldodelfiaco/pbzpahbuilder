@@ -17,7 +17,7 @@ import json
 from typing import Optional
 
 from qgis.PyQt import uic
-<<<<<<< HEAD
+from qgis.PyQt.QtCore import Qt
 from qgis.PyQt.QtWidgets import (
     QComboBox,
     QDialog,
@@ -31,10 +31,6 @@ from qgis.PyQt.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-=======
-from qgis.PyQt.QtCore import Qt
-from qgis.PyQt.QtWidgets import QDialog, QFileDialog, QMessageBox
->>>>>>> b3f2f20 (ajuste na captura das coordenadas e regras para criação do PBZPH)
 from qgis.core import (
     QgsCoordinateReferenceSystem,
     QgsCoordinateTransform,
@@ -47,14 +43,17 @@ from qgis.core import (
 )
 from qgis.gui import QgsMapToolEmitPoint
 
-<<<<<<< HEAD
 from .coordinate_widget import CoordinateFieldWidget, ElevationFieldWidget
-from .core.runway import ApproachType, ProjectType, Runway, RunwayType, SSPVSector, Threshold
-from .core.surfaces import build_pbzpa_layer
-=======
-from .core.runway import ApproachType, Heliponto, Runway, RunwayType, Threshold
+from .core.runway import (
+    ApproachType,
+    Heliponto,
+    ProjectType,
+    Runway,
+    RunwayType,
+    SSPVSector,
+    Threshold,
+)
 from .core.surfaces import build_pbzpa_layer, build_pbzph_layer
->>>>>>> b3f2f20 (ajuste na captura das coordenadas e regras para criação do PBZPH)
 from .core.opea_detection import create_opea_layer
 from .core.conflict_analysis import analyze_conflicts
 from .export.kml_exporter import export_layers_to_kml
@@ -77,18 +76,15 @@ class PBZPADialog(QDialog, FORM_CLASS):
         self.iface = iface
         self._surfaces_layer = None
         self._opea_layer = None
-<<<<<<< HEAD
-        
+
         # Substituir campos de coordenadas por widgets com mira
         self._setup_coordinate_widgets()
         self._setup_reference_combos()
         self._setup_sysaga_controls()
-=======
         self._capture_target: Optional[str] = None
         self._previous_map_tool = None
         self._capture_tool = QgsMapToolEmitPoint(self.iface.mapCanvas())
         self._capture_tool.canvasClicked.connect(self._on_canvas_clicked)
->>>>>>> b3f2f20 (ajuste na captura das coordenadas e regras para criação do PBZPH)
 
         # Conexões (objectName setado no .ui)
         self.btnGerarSuperficies.clicked.connect(self.on_generate_surfaces)
@@ -415,20 +411,6 @@ class PBZPADialog(QDialog, FORM_CLASS):
     # Slots
     # ------------------------------------------------------------------
     def on_generate_surfaces(self) -> None:
-<<<<<<< HEAD
-        runway = self._build_runway()
-        if runway is None:
-            return
-        if runway.project_type == ProjectType.HELIPORT:
-            QMessageBox.warning(
-                self,
-                "PBZPH em conferência",
-                "O modo Heliponto foi selecionado, mas a geração PBZPH está bloqueada "
-                "até a conferência dos campos autenticados do Anexo B do SYSAGA.",
-            )
-            return
-=======
->>>>>>> b3f2f20 (ajuste na captura das coordenadas e regras para criação do PBZPH)
         try:
             if self._is_heliponto_mode():
                 heliport = self._build_heliponto()

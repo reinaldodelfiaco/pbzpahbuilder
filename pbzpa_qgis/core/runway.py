@@ -1,27 +1,3 @@
-<<<<<<< HEAD
-# -*- coding: utf-8 -*-
-"""Modelagem de pista de pouso e decolagem (RWY).
-
-A pista é descrita por suas duas cabeceiras (lat, lon, elevação) e por
-parâmetros de classificação que determinam quais superfícies serão geradas:
-
-- ``code_number`` (1-4) — comprimento de campo de referência.
-- ``code_letter`` (A-F) — envergadura.
-- ``approach_type`` — visual / non-precision / precision-CAT-I/II/III.
-- ``runway_type`` — non-instrument / instrument.
-
-Coordenadas em entrada: WGS84/SIRGAS 2000 geográficas (lat/lon).
-Internamente o módulo de superfícies converte para UTM SIRGAS 2000 via
-:mod:`pbzpa_qgis.core.utm_utils`.
-"""
-from __future__ import annotations
-
-from dataclasses import dataclass
-from enum import Enum
-from typing import Tuple
-
-
-=======
 # -*- coding: utf-8 -*-
 """Modelagem de pista de pouso e decolagem (RWY) e heliponto (HRP).
 
@@ -42,12 +18,9 @@ Internamente o módulo de superfícies converte para UTM SIRGAS 2000 via
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
 from typing import Tuple
-
-
->>>>>>> b3f2f20 (ajuste na captura das coordenadas e regras para criação do PBZPH)
 class ApproachType(str, Enum):
     NOT_OPERATIONAL = "not_operational"
     VISUAL = "visual"
@@ -97,27 +70,6 @@ class Runway:
     runway_type: RunwayType = RunwayType.NON_INSTRUMENT
     sspv_sector: SSPVSector = SSPVSector.BOTH
     width_m: float = 45.0       # largura física da pista (m)
-<<<<<<< HEAD
-
-    def __post_init__(self):
-        if self.code_number not in (1, 2, 3, 4):
-            raise ValueError(f"code_number inválido: {self.code_number}")
-        if self.code_letter.upper() not in tuple("ABCDEF"):
-            raise ValueError(f"code_letter inválido: {self.code_letter}")
-
-    @property
-    def midpoint_lonlat(self) -> Tuple[float, float]:
-        """Ponto médio da pista em coordenadas geográficas (lon, lat)."""
-        return (
-            0.5 * (self.threshold_a.longitude + self.threshold_b.longitude),
-            0.5 * (self.threshold_a.latitude + self.threshold_b.latitude),
-        )
-
-    @property
-    def reference_elevation_m(self) -> float:
-        """Elevação de referência (média das cabeceiras), usada para o ARP."""
-        return 0.5 * (self.threshold_a.elevation_m + self.threshold_b.elevation_m)
-=======
 
     def __post_init__(self):
         if self.code_number not in (1, 2, 3, 4):
@@ -157,4 +109,3 @@ class Heliponto:
     def reference_elevation_m(self) -> float:
         """Elevação de referência do heliponto."""
         return self.hrp.elevation_m
->>>>>>> b3f2f20 (ajuste na captura das coordenadas e regras para criação do PBZPH)
