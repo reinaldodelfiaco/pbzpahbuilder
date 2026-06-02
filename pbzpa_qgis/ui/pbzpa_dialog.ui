@@ -34,6 +34,8 @@
           <item><property name="text"><string>Heliponto (PBZPH)</string></property></item>
          </widget>
         </item>
+        <item><widget class="QLabel"><property name="text"><string>Designativo OACI:</string></property></widget></item>
+        <item><widget class="QLineEdit" name="lineICAO"/></item>
         <item><widget class="QPushButton" name="btnCarregarJSON"><property name="text"><string>Carregar JSON</string></property></widget></item>
        </layout>
       </item>
@@ -42,7 +44,7 @@
        <widget class="QGroupBox" name="groupCabA">
         <property name="title"><string>Cabeceira A</string></property>
         <layout class="QGridLayout" name="gridCabA">
-        <item row="0" column="0"><widget class="QLabel"><property name="text"><string>Designativo:</string></property></widget></item>
+          <item row="0" column="0"><widget class="QLabel"><property name="text"><string>Rumo Magnético (°):</string></property></widget></item>
         <item row="0" column="1"><widget class="QLineEdit" name="lineCabA"/></item>
         <item row="1" column="0"><widget class="QLabel"><property name="text"><string>Longitude (graus dec.):</string></property></widget></item>
         <item row="1" column="1"><widget class="QLineEdit" name="lineLonA"/></item>
@@ -50,7 +52,9 @@
         <item row="2" column="1"><widget class="QLineEdit" name="lineLatA"/></item>
         <item row="3" column="0"><widget class="QLabel"><property name="text"><string>Elevação (m):</string></property></widget></item>
         <item row="3" column="1"><widget class="QLineEdit" name="lineElevA"/></item>
-        <item row="4" column="0" colspan="2">
+          <item row="4" column="0"><widget class="QLabel"><property name="text"><string>Declinação Magnética (°):</string></property></widget></item>
+          <item row="4" column="1"><widget class="QLineEdit" name="lineDeclinA"><property name="readOnly"><bool>true</bool></property></widget></item>
+          <item row="5" column="0" colspan="2">
          <widget class="QPushButton" name="btnAlvoA">
           <property name="text"><string>Capturar cabeceira A no mapa</string></property>
          </widget>
@@ -63,7 +67,7 @@
        <widget class="QGroupBox" name="groupCabB">
         <property name="title"><string>Cabeceira B</string></property>
         <layout class="QGridLayout" name="gridCabB">
-        <item row="0" column="0"><widget class="QLabel"><property name="text"><string>Designativo:</string></property></widget></item>
+          <item row="0" column="0"><widget class="QLabel"><property name="text"><string>Rumo Magnético (°):</string></property></widget></item>
         <item row="0" column="1"><widget class="QLineEdit" name="lineCabB"/></item>
         <item row="1" column="0"><widget class="QLabel"><property name="text"><string>Longitude (graus dec.):</string></property></widget></item>
         <item row="1" column="1"><widget class="QLineEdit" name="lineLonB"/></item>
@@ -71,7 +75,9 @@
         <item row="2" column="1"><widget class="QLineEdit" name="lineLatB"/></item>
         <item row="3" column="0"><widget class="QLabel"><property name="text"><string>Elevação (m):</string></property></widget></item>
         <item row="3" column="1"><widget class="QLineEdit" name="lineElevB"/></item>
-        <item row="4" column="0" colspan="2">
+          <item row="4" column="0"><widget class="QLabel"><property name="text"><string>Declinação Magnética (°):</string></property></widget></item>
+          <item row="4" column="1"><widget class="QLineEdit" name="lineDeclinB"><property name="readOnly"><bool>true</bool></property></widget></item>
+          <item row="5" column="0" colspan="2">
          <widget class="QPushButton" name="btnAlvoB">
           <property name="text"><string>Capturar cabeceira B no mapa</string></property>
          </widget>
@@ -84,10 +90,8 @@
        <widget class="QGroupBox" name="groupClassificacao">
         <property name="title"><string>Classificação da pista</string></property>
         <layout class="QGridLayout" name="gridClassificacao">
-        <item row="0" column="0"><widget class="QLabel"><property name="text"><string>Designativo OACI:</string></property></widget></item>
-        <item row="0" column="1"><widget class="QLineEdit" name="lineICAO"/></item>
-        <item row="1" column="0"><widget class="QLabel"><property name="text"><string>Code Number:</string></property></widget></item>
-        <item row="1" column="1">
+          <item row="0" column="0"><widget class="QLabel"><property name="text"><string>Code Number:</string></property></widget></item>
+          <item row="0" column="1">
          <widget class="QComboBox" name="cmbCodeNumber">
           <item><property name="text"><string>1</string></property></item>
           <item><property name="text"><string>2</string></property></item>
@@ -95,8 +99,8 @@
           <item><property name="text"><string>4</string></property></item>
          </widget>
         </item>
-        <item row="2" column="0"><widget class="QLabel"><property name="text"><string>Code Letter:</string></property></widget></item>
-        <item row="2" column="1">
+          <item row="1" column="0"><widget class="QLabel"><property name="text"><string>Code Letter:</string></property></widget></item>
+          <item row="1" column="1">
          <widget class="QComboBox" name="cmbCodeLetter">
           <item><property name="text"><string>A</string></property></item>
           <item><property name="text"><string>B</string></property></item>
@@ -106,14 +110,14 @@
           <item><property name="text"><string>F</string></property></item>
          </widget>
         </item>
-        <item row="3" column="0"><widget class="QLabel"><property name="text"><string>Tipo de pista:</string></property></widget></item>
-        <item row="3" column="1"><widget class="QComboBox" name="cmbRunwayType"/></item>
-        <item row="4" column="0"><widget class="QLabel"><property name="text"><string>Operação cabeceira A:</string></property></widget></item>
-        <item row="4" column="1"><widget class="QComboBox" name="cmbApproachA"/></item>
-        <item row="5" column="0"><widget class="QLabel"><property name="text"><string>Operação cabeceira B:</string></property></widget></item>
-        <item row="5" column="1"><widget class="QComboBox" name="cmbApproachB"/></item>
-        <item row="6" column="0"><widget class="QLabel"><property name="text"><string>Largura física da pista (m):</string></property></widget></item>
-        <item row="6" column="1"><widget class="QLineEdit" name="lineLargura"/></item>
+          <item row="2" column="0"><widget class="QLabel"><property name="text"><string>Tipo de pista:</string></property></widget></item>
+          <item row="2" column="1"><widget class="QComboBox" name="cmbRunwayType"/></item>
+          <item row="3" column="0"><widget class="QLabel"><property name="text"><string>Operação cabeceira A:</string></property></widget></item>
+          <item row="3" column="1"><widget class="QComboBox" name="cmbApproachA"/></item>
+          <item row="4" column="0"><widget class="QLabel"><property name="text"><string>Operação cabeceira B:</string></property></widget></item>
+          <item row="4" column="1"><widget class="QComboBox" name="cmbApproachB"/></item>
+          <item row="5" column="0"><widget class="QLabel"><property name="text"><string>Largura física da pista (m):</string></property></widget></item>
+          <item row="5" column="1"><widget class="QLineEdit" name="lineLargura"/></item>
         </layout>
        </widget>
       </item>
@@ -128,11 +132,13 @@
         <item row="1" column="1"><widget class="QLineEdit" name="lineHrpLat"/></item>
         <item row="2" column="0"><widget class="QLabel"><property name="text"><string>Altitude (m):</string></property></widget></item>
         <item row="2" column="1"><widget class="QLineEdit" name="lineHrpElev"/></item>
-        <item row="3" column="0"><widget class="QLabel"><property name="text"><string>Diâmetro TLOF (m):</string></property></widget></item>
-        <item row="3" column="1"><widget class="QLineEdit" name="lineTlofDiameter"/></item>
-        <item row="4" column="0"><widget class="QLabel"><property name="text"><string>Diâmetro FMGO (m):</string></property></widget></item>
-        <item row="4" column="1"><widget class="QLineEdit" name="lineFmgoDiameter"/></item>
-        <item row="5" column="0" colspan="2">
+        <item row="3" column="0"><widget class="QLabel"><property name="text"><string>Declinação Magnética (°):</string></property></widget></item>
+        <item row="3" column="1"><widget class="QLineEdit" name="lineHrpDecl"><property name="readOnly"><bool>true</bool></property></widget></item>
+        <item row="4" column="0"><widget class="QLabel"><property name="text"><string>Diâmetro TLOF (m):</string></property></widget></item>
+        <item row="4" column="1"><widget class="QLineEdit" name="lineTlofDiameter"/></item>
+        <item row="5" column="0"><widget class="QLabel"><property name="text"><string>Diâmetro FMGO (m):</string></property></widget></item>
+        <item row="5" column="1"><widget class="QLineEdit" name="lineFmgoDiameter"/></item>
+        <item row="6" column="0" colspan="2">
          <widget class="QPushButton" name="btnAlvoHRP">
           <property name="text"><string>Capturar HRP no mapa</string></property>
          </widget>

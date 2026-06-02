@@ -14,7 +14,11 @@ from __future__ import annotations
 
 import os
 import json
+import math
 from typing import Optional
+from datetime import date
+from urllib.parse import urlencode
+from urllib.request import urlopen
 
 from qgis.PyQt import uic
 from qgis.PyQt.QtCore import Qt
@@ -70,6 +74,8 @@ FORM_CLASS, _ = uic.loadUiType(UI_PATH)
 
 
 class PBZPADialog(QDialog, FORM_CLASS):
+    _NOAA_GEOMAG_KEY = "zNEw7"
+
     def __init__(self, iface, parent=None):
         super().__init__(parent)
         self.setupUi(self)
@@ -124,15 +130,23 @@ class PBZPADialog(QDialog, FORM_CLASS):
             self.lineElevA: ("elevA", self.elevA_widget),
             self.lineElevB: ("elevB", self.elevB_widget),
         }
-        form_layout = self.formAerodromo
-        for i in range(form_layout.rowCount()):
-            item = form_layout.itemAt(i, 1)
-            if item is None:
-                continue
-            original = item.widget()
-            if original in replacements:
-                attr_name, new_widget = replacements[original]
-                form_layout.setWidget(i, 1, new_widget)
+
+        def _replace_widget(original: QLineEdit, new_widget: QWidget) -> bool:
+            parent = original.parentWidget()
+            if parent is None:
+                return False
+            layout = parent.layout()
+            if layout is None:
+                return False
+            if layout.indexOf(original) < 0:
+                return False
+            layout.replaceWidget(original, new_widget)
+            original.hide()
+            original.setParent(None)
+            return True
+
+        for original, (attr_name, new_widget) in replacements.items():
+            if _replace_widget(original, new_widget):
                 setattr(self, f"line{attr_name[0].upper()}{attr_name[1:]}", new_widget)
     
     def _setup_reference_combos(self) -> None:
@@ -153,10 +167,18 @@ class PBZPADialog(QDialog, FORM_CLASS):
 
     def _setup_sysaga_controls(self) -> None:
         """Adiciona campos/exportadores usados para conferir os dados do SYSAGA."""
-        self.cmbProjectType = QComboBox(self)
-        self.cmbProjectType.addItem("Aerodromo (PBZPA)", ProjectType.AERODROME.value)
-        self.cmbProjectType.addItem("Heliponto (PBZPH)", ProjectType.HELIPORT.value)
-        self.formAerodromo.insertRow(0, "Tipo de projeto:", self.cmbProjectType)
+        # Compatibilidade com UI novo (cmbTipoAerodromo já existe) e antigo.
+        if hasattr(self, "cmbTipoAerodromo"):
+            self.cmbProjectType = self.cmbTipoAerodromo
+            self.cmbProjectType.clear()
+            self.cmbProjectType.addItem("Aerodromo (PBZPA)", ProjectType.AERODROME.value)
+            self.cmbProjectType.addItem("Heliponto (PBZPH)", ProjectType.HELIPORT.value)
+        else:
+            self.cmbProjectType = QComboBox(self)
+            self.cmbProjectType.addItem("Aerodromo (PBZPA)", ProjectType.AERODROME.value)
+            self.cmbProjectType.addItem("Heliponto (PBZPH)", ProjectType.HELIPORT.value)
+            if hasattr(self, "formAerodromo"):
+                self.formAerodromo.insertRow(0, "Tipo de projeto:", self.cmbProjectType)
 
         self.cmbSSPV = QComboBox(self)
         self.cmbSSPV.addItem("Sem SSPV", SSPVSector.NONE.value)
@@ -164,7 +186,12 @@ class PBZPADialog(QDialog, FORM_CLASS):
         self.cmbSSPV.addItem("Somente setor da cabeceira B", SSPVSector.SECTOR_B.value)
         self.cmbSSPV.addItem("Ambos os setores", SSPVSector.BOTH.value)
         self.cmbSSPV.setCurrentIndex(3)
-        self.formAerodromo.insertRow(16, "Setor SSPV:", self.cmbSSPV)
+        if hasattr(self, "formAerodromo"):
+            self.formAerodromo.insertRow(16, "Setor SSPV:", self.cmbSSPV)
+        elif hasattr(self, "gridClassificacao"):
+            row = max(7, self.gridClassificacao.rowCount())
+            self.gridClassificacao.addWidget(QLabel("Setor SSPV:"), row, 0)
+            self.gridClassificacao.addWidget(self.cmbSSPV, row, 1)
 
         self.tabSysaga = QWidget(self)
         layout = QVBoxLayout(self.tabSysaga)
@@ -201,14 +228,25 @@ class PBZPADialog(QDialog, FORM_CLASS):
 
     def _build_runway(self) -> Optional[Runway]:
         try:
+            project_data = self.cmbProjectType.currentData() if hasattr(self, "cmbProjectType") else None
+            if project_data is None:
+                project_type = ProjectType.HELIPORT if self._is_heliponto_mode() else ProjectType.AERODROME
+            else:
+                project_type = ProjectType(project_data)
+
+            sspv_data = self.cmbSSPV.currentData() if hasattr(self, "cmbSSPV") else None
+            sspv_sector = SSPVSector(sspv_data) if sspv_data is not None else SSPVSector.BOTH
+            designator_a = self._runway_designator_from_heading(self.lineCabA.text(), "A")
+            designator_b = self._runway_designator_from_heading(self.lineCabB.text(), "B")
+
             th_a = Threshold(
-                designator=self.lineCabA.text().strip() or "A",
+                designator=designator_a,
                 longitude=float(self.lineLonA.text().replace(",", ".")),
                 latitude=float(self.lineLatA.text().replace(",", ".")),
                 elevation_m=float(self.lineElevA.text().replace(",", ".")),
             )
             th_b = Threshold(
-                designator=self.lineCabB.text().strip() or "B",
+                designator=designator_b,
                 longitude=float(self.lineLonB.text().replace(",", ".")),
                 latitude=float(self.lineLatB.text().replace(",", ".")),
                 elevation_m=float(self.lineElevB.text().replace(",", ".")),
@@ -219,11 +257,11 @@ class PBZPADialog(QDialog, FORM_CLASS):
                 threshold_b=th_b,
                 code_number=int(self.cmbCodeNumber.currentText()),
                 code_letter=self.cmbCodeLetter.currentText(),
-                project_type=ProjectType(self.cmbProjectType.currentData()),
+                project_type=project_type,
                 approach_type_a=ApproachType(self.cmbApproachA.currentData()),
                 approach_type_b=ApproachType(self.cmbApproachB.currentData()),
                 runway_type=RunwayType(self.cmbRunwayType.currentData()),
-                sspv_sector=SSPVSector(self.cmbSSPV.currentData()),
+                sspv_sector=sspv_sector,
                 width_m=float(self.lineLargura.text().replace(",", ".") or 45),
             )
             return rwy
@@ -234,7 +272,7 @@ class PBZPADialog(QDialog, FORM_CLASS):
     def _build_heliponto(self) -> Optional[Heliponto]:
         try:
             hrp = Threshold(
-                designator=self.lineCabA.text().strip() or "HRP",
+                designator="HRP",
                 longitude=float(self.lineHrpLon.text().replace(",", ".")),
                 latitude=float(self.lineHrpLat.text().replace(",", ".")),
                 elevation_m=float(self.lineHrpElev.text().replace(",", ".")),
@@ -260,7 +298,7 @@ class PBZPADialog(QDialog, FORM_CLASS):
         self.iface.mapCanvas().setMapTool(self._capture_tool)
         self.iface.messageBar().pushInfo(
             "PBZPA/PBZPH",
-            f"Clique no mapa para capturar a cabeceira {target}.",
+            f"Clique no mapa para capturar a cabeceira {target} (longitude, latitude, elevação e declinação magnética).",
         )
 
     def _restore_map_tool(self) -> None:
@@ -270,13 +308,93 @@ class PBZPADialog(QDialog, FORM_CLASS):
 
     def _target_fields(self, target: str):
         if target == "A":
-            return self.lineLonA, self.lineLatA, self.lineElevA
+            return self.lineLonA, self.lineLatA, self.lineElevA, self.lineDeclinA
         if target == "HRP":
-            return self.lineHrpLon, self.lineHrpLat, self.lineHrpElev
-        return self.lineLonB, self.lineLatB, self.lineElevB
+            return self.lineHrpLon, self.lineHrpLat, self.lineHrpElev, self.lineHrpDecl
+        return self.lineLonB, self.lineLatB, self.lineElevB, self.lineDeclinB
 
     def _format_number(self, value: float, decimals: int) -> str:
         return f"{value:.{decimals}f}"
+
+    def _parse_float(self, text: str) -> Optional[float]:
+        raw = text.strip().replace(",", ".")
+        if not raw:
+            return None
+        try:
+            return float(raw)
+        except ValueError:
+            return None
+
+    def _normalize_heading(self, heading_deg: float) -> float:
+        return heading_deg % 360.0
+
+    def _true_bearing(self, lon1: float, lat1: float, lon2: float, lat2: float) -> float:
+        """Retorna rumo verdadeiro inicial de (lon1,lat1) para (lon2,lat2) em graus."""
+        phi1 = math.radians(lat1)
+        phi2 = math.radians(lat2)
+        dlon = math.radians(lon2 - lon1)
+        y = math.sin(dlon) * math.cos(phi2)
+        x = math.cos(phi1) * math.sin(phi2) - math.sin(phi1) * math.cos(phi2) * math.cos(dlon)
+        brng = math.degrees(math.atan2(y, x))
+        return self._normalize_heading(brng)
+
+    def _runway_designator_from_heading(self, heading_text: str, fallback: str) -> str:
+        heading = self._parse_float(heading_text)
+        if heading is None:
+            return fallback
+        num = int(round(self._normalize_heading(heading) / 10.0))
+        if num == 0:
+            num = 36
+        if num > 36:
+            num = 36
+        return f"{num:02d}"
+
+    def _fetch_magnetic_declination(self, lon: float, lat: float) -> Optional[float]:
+        """Consulta declinação magnética no NOAA Geomag Web API (WMM)."""
+        today = date.today()
+        params = {
+            "lat1": f"{lat:.8f}",
+            "lon1": f"{lon:.8f}",
+            "startYear": today.year,
+            "startMonth": today.month,
+            "startDay": today.day,
+            "resultFormat": "json",
+            "key": self._NOAA_GEOMAG_KEY,
+        }
+        url = "https://www.ngdc.noaa.gov/geomag-web/calculators/calculateDeclination?" + urlencode(params)
+        try:
+            with urlopen(url, timeout=6) as response:
+                payload = json.loads(response.read().decode("utf-8"))
+            result = payload.get("result")
+            if isinstance(result, list) and result:
+                value = result[0].get("declination")
+                if value is not None:
+                    return float(value)
+            value = payload.get("declination")
+            if value is not None:
+                return float(value)
+        except Exception as exc:  # noqa: BLE001
+            self._log(f"Falha ao consultar declinação magnética: {exc}", Qgis.Warning)
+        return None
+
+    def _update_runway_magnetic_headings(self) -> None:
+        lon_a = self._parse_float(self.lineLonA.text())
+        lat_a = self._parse_float(self.lineLatA.text())
+        lon_b = self._parse_float(self.lineLonB.text())
+        lat_b = self._parse_float(self.lineLatB.text())
+        decl_a = self._parse_float(self.lineDeclinA.text())
+        decl_b = self._parse_float(self.lineDeclinB.text())
+
+        if None in (lon_a, lat_a, lon_b, lat_b, decl_a, decl_b):
+            return
+
+        true_a = self._true_bearing(lon_a, lat_a, lon_b, lat_b)
+        true_b = self._true_bearing(lon_b, lat_b, lon_a, lat_a)
+        mag_a = self._normalize_heading(true_a + decl_a)
+        mag_b = self._normalize_heading(true_b + decl_b)
+
+        self.lineCabA.setText(self._format_number(mag_a, 1))
+        self.lineCabB.setText(self._format_number(mag_b, 1))
 
     def _set_combo_value(self, combo, value: str) -> None:
         index = combo.findText(value)
@@ -288,15 +406,18 @@ class PBZPADialog(QDialog, FORM_CLASS):
         self.lineLonA.clear()
         self.lineLatA.clear()
         self.lineElevA.clear()
+        self.lineDeclinA.clear()
         self.lineCabB.clear()
         self.lineLonB.clear()
         self.lineLatB.clear()
         self.lineElevB.clear()
+        self.lineDeclinB.clear()
 
     def _clear_heliponto_fields(self) -> None:
         self.lineHrpLon.clear()
         self.lineHrpLat.clear()
         self.lineHrpElev.clear()
+        self.lineHrpDecl.clear()
         self.lineTlofDiameter.clear()
         self.lineFmgoDiameter.clear()
 
@@ -320,6 +441,7 @@ class PBZPADialog(QDialog, FORM_CLASS):
             self.lineHrpLon.setText(str(tlof.get("longitude", "")))
             self.lineHrpLat.setText(str(tlof.get("latitude", "")))
             self.lineHrpElev.setText(str(tlof.get("elevation_m", "")))
+            self.lineHrpDecl.clear()
             self.lineTlofDiameter.setText(str(payload.get("tlof", {}).get("diametro_m", 25)))
             self.lineFmgoDiameter.setText(str(payload.get("fmgo", {}).get("diametro_m", 30)))
             return
@@ -328,19 +450,22 @@ class PBZPADialog(QDialog, FORM_CLASS):
         self.cmbTipoAerodromo.setCurrentIndex(0)
         self._clear_runway_fields()
         self.lineICAO.setText(payload.get("icao_code", "----"))
-        self.lineCabA.setText(str(thresholds.get("A", {}).get("designator", "A")))
+        self.lineCabA.setText(str(thresholds.get("A", {}).get("rumo_magnetico", thresholds.get("A", {}).get("magnetic_heading_deg", ""))))
         self.lineLonA.setText(str(thresholds.get("A", {}).get("longitude", "")))
         self.lineLatA.setText(str(thresholds.get("A", {}).get("latitude", "")))
         self.lineElevA.setText(str(thresholds.get("A", {}).get("elevation_m", "")))
-        self.lineCabB.setText(str(thresholds.get("B", {}).get("designator", "B")))
+        self.lineCabB.setText(str(thresholds.get("B", {}).get("rumo_magnetico", thresholds.get("B", {}).get("magnetic_heading_deg", ""))))
         self.lineLonB.setText(str(thresholds.get("B", {}).get("longitude", "")))
         self.lineLatB.setText(str(thresholds.get("B", {}).get("latitude", "")))
         self.lineElevB.setText(str(thresholds.get("B", {}).get("elevation_m", "")))
+        self.lineDeclinA.clear()
+        self.lineDeclinB.clear()
         self._set_combo_value(self.cmbCodeNumber, str(payload.get("code_number", 1)))
         self._set_combo_value(self.cmbCodeLetter, str(payload.get("code_letter", "A")).upper())
         self._set_combo_value(self.cmbRunwayType, str(payload.get("runway_type", "non_instrument")))
         self._set_combo_value(self.cmbApproachA, str(thresholds.get("A", {}).get("approach_type", "visual")))
         self._set_combo_value(self.cmbApproachB, str(thresholds.get("B", {}).get("approach_type", "visual")))
+        self._update_runway_magnetic_headings()
 
     def _find_raster_layer(self) -> Optional[QgsRasterLayer]:
         path = self.lineRaster.text().strip()
@@ -390,7 +515,7 @@ class PBZPADialog(QDialog, FORM_CLASS):
             )
             geo_point = to_geo.transform(point)
             elevation = self._sample_elevation(point)
-            lon_field, lat_field, elev_field = self._target_fields(self._capture_target)
+            lon_field, lat_field, elev_field, decl_field = self._target_fields(self._capture_target)
             lon_field.setText(self._format_number(geo_point.x(), 8))
             lat_field.setText(self._format_number(geo_point.y(), 8))
             if elevation is not None:
@@ -401,6 +526,20 @@ class PBZPADialog(QDialog, FORM_CLASS):
                     "Elevação não encontrada",
                     "As coordenadas foram preenchidas, mas não foi possível extrair a elevação do raster disponível.",
                 )
+
+            declination = self._fetch_magnetic_declination(geo_point.x(), geo_point.y())
+            if declination is not None:
+                decl_field.setText(self._format_number(declination, 2))
+            else:
+                decl_field.setText("")
+                QMessageBox.warning(
+                    self,
+                    "Declinação indisponível",
+                    "Não foi possível obter a declinação magnética para o ponto selecionado.",
+                )
+
+            if self._capture_target in ("A", "B"):
+                self._update_runway_magnetic_headings()
         except Exception as exc:  # noqa: BLE001
             QMessageBox.critical(self, "Erro", f"Falha ao capturar ponto no mapa: {exc}")
         finally:
@@ -443,8 +582,10 @@ class PBZPADialog(QDialog, FORM_CLASS):
         if path:
             self.lineRaster.setText(path)
             # Propagar caminho do raster para widgets de elevação
-            self.elevA_widget.set_raster_path(path)
-            self.elevB_widget.set_raster_path(path)
+            if hasattr(self, "elevA_widget"):
+                self.elevA_widget.set_raster_path(path)
+            if hasattr(self, "elevB_widget"):
+                self.elevB_widget.set_raster_path(path)
 
     def on_run_analysis(self) -> None:
         if self._surfaces_layer is None or self._opea_layer is None:
