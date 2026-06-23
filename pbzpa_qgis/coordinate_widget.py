@@ -15,9 +15,11 @@ from qgis.PyQt.QtWidgets import (
     QWidget,
 )
 from qgis.core import (
+    Qgis,
     QgsCoordinateReferenceSystem,
     QgsCoordinateTransform,
     QgsMapLayer,
+    QgsMessageLog,
     QgsPointXY,
     QgsProject,
     QgsRasterLayer,
@@ -71,8 +73,12 @@ class CoordinateMapTool(QgsMapToolEmitPoint):
                         project_crs, wgs84, QgsProject.instance()
                     )
                     point = xform.transform(point)
-                except Exception:
-                    pass
+                except Exception as exc:  # noqa: BLE001
+                    QgsMessageLog.logMessage(
+                        f"Falha ao transformar coordenada para WGS84: {exc}",
+                        "PBZPA/PBZPH",
+                        Qgis.Warning,
+                    )
         self.coordinate_selected.emit(point)
 
 
@@ -113,8 +119,12 @@ class RasterElevationMapTool(QgsMapToolEmitPoint):
                     project_crs, raster_crs, QgsProject.instance()
                 )
                 sample_point = xform.transform(map_point)
-            except Exception:
-                pass
+            except Exception as exc:  # noqa: BLE001
+                QgsMessageLog.logMessage(
+                    f"Falha ao transformar ponto para CRS do raster: {exc}",
+                    "PBZPA/PBZPH",
+                    Qgis.Warning,
+                )
 
         # 3. Amostrar banda 1
         provider = raster_layer.dataProvider()

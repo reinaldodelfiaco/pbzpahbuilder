@@ -20,11 +20,11 @@ from __future__ import annotations
 
 import os
 import shutil
-import subprocess
 import tempfile
 from dataclasses import dataclass
 from typing import Iterable, Optional
 
+from qgis.PyQt.QtCore import QProcess
 from qgis.core import QgsFeature, QgsVectorLayer
 
 LAYER_COLORS = {
@@ -171,8 +171,10 @@ def _convert_dxf_to_dwg(dxf_path: str, oda_exe: Optional[str]) -> Optional[str]:
     try:
         new_src = os.path.join(src_dir, os.path.basename(dxf_path))
         shutil.copy2(dxf_path, new_src)
-        cmd = [exe, src_dir, dst_dir, "ACAD2018", "DWG", "0", "1"]
-        subprocess.run(cmd, check=True, capture_output=True)
+        args = [src_dir, dst_dir, "ACAD2018", "DWG", "0", "1"]
+        exit_code = QProcess.execute(exe, args)
+        if exit_code != 0:
+            raise RuntimeError(f"ODA File Converter falhou com código {exit_code}.")
         out_dwg = os.path.join(
             dst_dir, os.path.splitext(os.path.basename(dxf_path))[0] + ".dwg"
         )

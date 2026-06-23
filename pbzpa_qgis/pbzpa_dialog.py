@@ -18,10 +18,10 @@ import math
 from typing import Optional
 from datetime import date
 from urllib.parse import urlencode
-from urllib.request import urlopen
 
 from qgis.PyQt import uic
-from qgis.PyQt.QtCore import Qt
+from qgis.PyQt.QtCore import QEventLoop, Qt, QTimer, QUrl
+from qgis.PyQt.QtNetwork import QNetworkAccessManager, QNetworkRequest
 from qgis.PyQt.QtWidgets import (
     QComboBox,
     QDialog,
@@ -74,7 +74,9 @@ FORM_CLASS, _ = uic.loadUiType(UI_PATH)
 
 
 class PBZPADialog(QDialog, FORM_CLASS):
-    _NOAA_GEOMAG_KEY = "zNEw7"
+    _NOAA_DECLINATION_ENDPOINT = (
+        "https://www.ngdc.noaa.gov/geomag-web/calculators/calculateDeclination"
+    )
 
     def __init__(self, iface, parent=None):
         super().__init__(parent)
@@ -359,12 +361,37 @@ class PBZPADialog(QDialog, FORM_CLASS):
             "startMonth": today.month,
             "startDay": today.day,
             "resultFormat": "json",
-            "key": self._NOAA_GEOMAG_KEY,
         }
-        url = "https://www.ngdc.noaa.gov/geomag-web/calculators/calculateDeclination?" + urlencode(params)
+        api_key = os.environ.get("PBZPA_NOAA_GEOMAG_KEY", "").strip()
+        if api_key:
+            params["key"] = api_key
+
+        url = self._NOAA_DECLINATION_ENDPOINT + "?" + urlencode(params)
         try:
-            with urlopen(url, timeout=6) as response:
-                payload = json.loads(response.read().decode("utf-8"))
+            request = QNetworkRequest(QUrl(url))
+            request.setRawHeader(b"User-Agent", b"PBZPA-QGIS/0.4.0")
+            manager = QNetworkAccessManager(self)
+            reply = manager.get(request)
+            loop = QEventLoop()
+            timer = QTimer(self)
+            timer.setSingleShot(True)
+            timer.timeout.connect(reply.abort)
+            timer.timeout.connect(loop.quit)
+            reply.finished.connect(loop.quit)
+            timer.start(6000)
+            loop.exec_()
+
+            if timer.isActive():
+                timer.stop()
+            else:
+                raise TimeoutError("tempo limite excedido")
+
+            if reply.error():
+                raise RuntimeError(reply.errorString())
+
+            payload = json.loads(bytes(reply.readAll()).decode("utf-8"))
+            reply.deleteLater()
+            manager.deleteLater()
             result = payload.get("result")
             if isinstance(result, list) and result:
                 value = result[0].get("declination")
